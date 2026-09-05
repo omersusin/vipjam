@@ -33,6 +33,7 @@ set_permissions() {
   fi
   set_perm $MODPATH/vipjam-ctl 0 0 0755
   set_perm $MODPATH/aml.sh 0 0 0644
+  set_perm $MODPATH/system/bin/vipjam-ctl 0 0 0755
 }
 
 ##########################################################################################
@@ -42,6 +43,8 @@ set_permissions() {
 SKIPUNZIP=1
 unzip -qjo "$ZIPFILE" 'common/functions.sh' -d $TMPDIR >&2
 . $TMPDIR/functions.sh
+# VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
+. $MODPATH/common/install.sh
 LIBPATCH=`cat $MODPATH/libpatch.txt`
 CFGS="$(find /odm /system /vendor -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml")"
 for FILE in ${CFGS}; do

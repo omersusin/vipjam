@@ -9,6 +9,11 @@ if [ "$IS64BIT" ]; then
 cp_ch -n $MODPATH/common/files/libvipjam_$ABI.so $MODPATH$LIBDIR/lib64/soundfx/libvipjam.so
 fi
 
+ui_print "    Installing vipjam-ctl..."
+mkdir -p $MODPATH/system/bin
+cp_ch -n $MODPATH/vipjam-ctl $MODPATH/system/bin/vipjam-ctl
+chmod 0755 $MODPATH/system/bin/vipjam-ctl
+
 ui_print "    Patching audio_effects config files"
 CFGS="$(find /odm /system /vendor -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml")"
 for OFILE in ${CFGS}; do

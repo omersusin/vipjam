@@ -1,0 +1,53 @@
+// Soong sketch for the VipJam AIDL system effect — BEST EFFORT, UNVERIFIED.
+// Requires a real AOSP tree (hardware/interfaces/audio/aidl of the target
+// version) to close shared_libs versions, FMQ deps, and install paths.
+// Do NOT attempt ndk-build/NDK CMake on this module (see README §6).
+
+// cc_library_shared {
+//     name: "libv4a_aidl",
+//     srcs: ["VipJamAidlEffect.cpp"],
+//
+//     // Our DSP core: VipJamChain + engines + SHM helpers.
+//     // In-tree: turn vipjam_dsp/src (+ bundled third_party) into a
+//     // cc_library_static "libvipjam_engines" and list it here; simplest v1:
+//     // compile the needed vipjam_dsp/src/*.cpp directly in srcs.
+//     //
+//     // srcs: [
+//     //     "VipJamAidlEffect.cpp",
+//     //     "../src/VipJamChain.cpp",
+//     //     "../src/VipJamShm.cpp",
+//     //     "../src/VipJamContext.cpp",
+//     //     "../src/VipJamLoudness.cpp",
+//     //     ... engines ...
+//     // ],
+//
+//     // VERIFY every entry against the target tree's
+//     // hardware/interfaces/audio/aidl revisions (V1/V2/V3-ndk skew):
+//     shared_libs: [
+//         "android.hardware.audio.effect-V1-ndk",  // <- pin per AOSP major
+//         "android.hardware.common.fmq-V1-ndk",
+//         "libbinder_ndk",
+//         "libcutils",
+//         "liblog",
+//     ],
+//     static_libs: [
+//         // "libvipjam_engines",  // preferred once factored
+//     ],
+//
+//     include_dirs: [
+//         // "../include",  // VipJamChain.h / VipJamShm.h / VipJamParams.h
+//     ],
+//
+//     cflags: [
+//         "-Wall",
+//         "-Wextra",
+//         "-fvisibility=hidden",
+//         // "-DVIPJAM_AIDL_STUB=0",  // drop aidl_stub shims on bring-up
+//     ],
+//
+//     // Effect factory loader looks under the audio HAL effect-lib dir
+//     // (kEffectLibPath, e.g. /vendor/lib{,64}/soundfx); confirm
+//     // proprietary: true / vendor: true / relative_install_path for target.
+//     // vendor: true,
+//     // relative_install_path: "soundfx",
+// }
