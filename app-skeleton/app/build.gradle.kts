@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.vipjam"
     compileSdk = 37
+    ndkVersion = "27.3.13750724"
 
     defaultConfig {
         applicationId = "com.vipjam"
@@ -13,6 +14,9 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = System.getenv("VIPJAM_VERSION_NAME") ?: "0.1.0"
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     signingConfigs {
@@ -47,6 +51,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    externalNativeBuild {
+        ndkBuild {
+            path = file("../../vipjam_dsp/jni/Android.mk")
+        }
     }
 }
 
