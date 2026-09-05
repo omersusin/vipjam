@@ -1,4 +1,4 @@
-name=VipJam CI
+name: VipJam CI
 
 on:
   push:
