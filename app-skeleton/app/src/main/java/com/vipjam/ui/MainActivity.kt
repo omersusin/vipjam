@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class TabPage { Effects, Presets, TestTone, LiveProg, Status }
+private enum class TabPage { Effects, Presets, TestTone, LiveProg, AutoEq, AppProfiles, Status }
 
 @Composable
 fun VipJamApp() {
@@ -77,6 +77,8 @@ fun VipJamApp() {
                 TabPage.Presets -> PresetsTab(store, snackbar)
                 TabPage.TestTone -> TestToneTab(snackbar)
                 TabPage.LiveProg -> LiveProgTab(snackbar)
+                TabPage.AutoEq -> AutoEqTab(snackbar)
+                TabPage.AppProfiles -> AppProfilesTab(snackbar)
                 TabPage.Status -> StatusTab(store)
             }
         }
