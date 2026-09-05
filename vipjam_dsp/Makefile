@@ -7,7 +7,7 @@ INCLUDES = -Iinclude -Ihost -Isrc -Ithird_party/jamesdsp -DVIPJAM_HOST_BUILD
 INC_JAMES = -Ihost -Ithird_party/jamesdsp -Ithird_party/jamesdsp/jdsp
 INC_VIPER = -Ithird_party -Ithird_party/viper -Ihost
 
-SRC_CPP = src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp
+SRC_CPP = src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp
 SRC_C = src/james_bridge.c
 SRC = $(SRC_CPP) $(SRC_C)
 TEST_SRC = tests/test_params.cpp
@@ -43,11 +43,13 @@ $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 
 test_vipjam: $(SRC) $(TEST_SRC) $(ENGINELIB)
 	$(CC) -c $(CFLAGS_JAMES) $(INCLUDES) -o build/host/james_bridge.o src/james_bridge.c
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ $(TEST_SRC) src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ $(TEST_SRC) src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o test_shm tests/test_shm.cpp src/VipJamShm.cpp
 
 test: test_vipjam
 	./test_vipjam
+	./test_shm
 
 clean:
-	rm -f test_vipjam
+	rm -f test_vipjam test_shm
 	rm -rf build
