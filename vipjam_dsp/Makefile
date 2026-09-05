@@ -7,7 +7,7 @@ INCLUDES = -Iinclude -Ihost -Isrc -Ithird_party/jamesdsp -DVIPJAM_HOST_BUILD
 INC_JAMES = -Ihost -Ithird_party/jamesdsp -Ithird_party/jamesdsp/jdsp
 INC_VIPER = -Ithird_party -Ithird_party/viper -Ihost
 
-SRC_CPP = src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp
+SRC_CPP = src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp
 SRC_C = src/james_bridge.c
 SRC = $(SRC_CPP) $(SRC_C)
 TEST_SRC = tests/test_params.cpp
@@ -41,15 +41,23 @@ $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 	done
 	ar rcs $@ $(OBJDIR)/*.o
 
-test_vipjam: $(SRC) $(TEST_SRC) $(ENGINELIB)
-	$(CC) -c $(CFLAGS_JAMES) $(INCLUDES) -o build/host/james_bridge.o src/james_bridge.c
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ $(TEST_SRC) src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o test_shm tests/test_shm.cpp src/VipJamShm.cpp
+test_vipjam: $(SRC) $(TEST_SRC) $(ENGINELIB) build/host/james_bridge.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ $(TEST_SRC) src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
 
-test: test_vipjam
+build/host/james_bridge.o: src/james_bridge.c
+	$(CC) -c $(CFLAGS_JAMES) $(INCLUDES) -o $@ src/james_bridge.c
+
+test_shm: tests/test_shm.cpp src/VipJamShm.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ tests/test_shm.cpp src/VipJamShm.cpp
+
+test_loudness: tests/test_loudness.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp $(ENGINELIB) build/host/james_bridge.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ tests/test_loudness.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
+
+test: test_vipjam test_shm test_loudness
 	./test_vipjam
 	./test_shm
+	./test_loudness
 
 clean:
-	rm -f test_vipjam test_shm
+	rm -f test_vipjam test_shm test_loudness
 	rm -rf build

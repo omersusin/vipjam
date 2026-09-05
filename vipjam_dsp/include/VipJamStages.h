@@ -30,6 +30,7 @@ typedef enum {
     VJ_STAGE_VIPER_CURE,
     VJ_STAGE_VIPER_TUBE,
     VJ_STAGE_VIPER_ANALOGX,
+    VJ_STAGE_LOUDNESS,
     VJ_STAGE_LIMITER,
     VJ_STAGE_COUNT
 } vj_stage_t;

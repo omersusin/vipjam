@@ -452,6 +452,8 @@ inaudible; fixed, range to 24dB) applied from day one.
 - Loudness: ISO-226:2023 compensator (8-biquad cascade, 50ms ramp, ref
   **80 phon**, `deviceVolume × appVolume`, order EQ → compensator → limiter;
   FineTune-PR lessons: no preamp, immutable swap, no strength slider).
+  (done: `VipJamLoudness.{h,cpp}`, `VJ_STAGE_LOUDNESS` pinned pre-limiter,
+  default off, 12 host tests incl. measured ISO contour).
 - Extras: ISO-226 needs limiter (have it); channel balance; auto-preamp;
   DVC (unity-gain, Ainur+Poweramp double-confirmed); Movie/Game presets +
   dialogue enhance + leveler (Dolby pattern); per-app `Map<package,preset>` +

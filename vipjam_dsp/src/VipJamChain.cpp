@@ -15,6 +15,7 @@ VipJamChain::~VipJamChain() {
 
 void VipJamChain::setSamplingRate(uint32_t rate) {
     samplingRate_ = rate;
+    loudness_.setSampleRate(rate);
     vj_james_set_rate(static_cast<vj_james_t *>(jdsp_), rate);
     vj_viper_set_rate(static_cast<vj_viper *>(viper_), rate);
 }
@@ -44,7 +45,8 @@ void VipJamChain::applyViperStage(vj_stage_t stage, bool enabled) {
 void VipJamChain::setStageEnabled(vj_stage_t stage, bool enabled) {
     if (stage < 0 || stage >= VJ_STAGE_COUNT) return;
     enabled_[stage] = enabled;
-    if (stage <= VJ_STAGE_JAMES_REVERB) applyJamesStage(stage, enabled);
+    if (stage == VJ_STAGE_LOUDNESS) loudness_.setEnabled(enabled);
+    else if (stage <= VJ_STAGE_JAMES_REVERB) applyJamesStage(stage, enabled);
     else if (stage < VJ_STAGE_LIMITER) applyViperStage(stage, enabled);
 }
 
@@ -128,6 +130,10 @@ void VipJamChain::setViperAnalogX(int mode) {
     vj_viper_set_analogx(static_cast<vj_viper *>(viper_), mode);
 }
 
+void VipJamChain::setLoudnessVolume(float device01, float app01) {
+    loudness_.setVolume(device01, app01);
+}
+
 void VipJamChain::viperSetDDC(const float *c44, unsigned int n44,
                               const float *c48, unsigned int n48) {
     vj_viper_set_ddc(static_cast<vj_viper *>(viper_), c44, n44, c48, n48);
@@ -161,6 +167,7 @@ unsigned int VipJamChain::viperKernelID() const {
 
 void VipJamChain::reset() {
     limiterGate_ = 0.999999f;
+    loudness_.reset();
     vj_viper_reset(static_cast<vj_viper *>(viper_));
     for (int s = 0; s < VJ_STAGE_COUNT; s++)
         if (enabled_[s]) setStageEnabled(static_cast<vj_stage_t>(s), true);
@@ -193,6 +200,9 @@ void VipJamChain::process(std::vector<float> &interleavedStereo) {
     if (anyViperStageOn(enabled_)) {
         vj_viper_process(static_cast<vj_viper *>(viper_), interleavedStereo,
                          frames);
+    }
+    if (enabled_[VJ_STAGE_LOUDNESS]) {
+        loudness_.process(interleavedStereo.data(), frames);
     }
     for (uint32_t i = 0; i < interleavedStereo.size(); i++) {
         float v = interleavedStereo[i];

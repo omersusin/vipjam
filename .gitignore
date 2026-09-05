@@ -11,3 +11,4 @@ app-skeleton/app/.gradle/
 .gradle/
 local.properties
 test_shm
+test_loudness
