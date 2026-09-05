@@ -1,6 +1,9 @@
 package com.vipjam.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.vipjam.dsp.ParamSink
+import com.vipjam.dsp.PresetApplier
+import com.vipjam.dsp.VipJamDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -8,6 +11,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+
+private class RecordingSink : ParamSink {
+    val calls = mutableListOf<Triple<Int, Int, Int?>>()
+
+    override fun set(id: Int, v0: Int): Boolean {
+        calls += Triple(id, v0, null)
+        return true
+    }
+
+    override fun set(id: Int, v0: Int, v1: Int): Boolean {
+        calls += Triple(id, v0, v1)
+        return true
+    }
+
+    override fun set(id: Int, v0: Int, v1: Int, v2: Int): Boolean {
+        calls += Triple(id, v0, v1)
+        return true
+    }
+}
 
 class PresetImporterTest {
     @get:Rule
@@ -81,14 +103,33 @@ class PresetImporterTest {
     }
 
     @Test
-    fun `liveprog validation catches bad scripts`() {
-        assertTrue(LiveProgScripts.validate("@init\nx=1;\n@sample\ny=x;").isEmpty())
+    fun `liveprog validation catches bad scripts`() {        assertTrue(LiveProgScripts.validate("@init\nx=1;\n@sample\ny=x;").isEmpty())
         val errors = LiveProgScripts.validate("y=x;")
         assertTrue(errors.any { it.contains("@init") })
         assertTrue(errors.any { it.contains("@sample") })
         assertTrue(LiveProgScripts.validate("@init\n@sample\nfoo(bar;").any {
             it.contains("unbalanced")
         })
+    }
+
+    @Test
+    fun `applier dispatches movie groups`() {
+        val json = resource("Movie.v3.json")
+        val sink = RecordingSink()
+        assertTrue(PresetApplier.apply(sink, json, true))
+        val ids = sink.calls.map { it.first }.toSet()
+        assertTrue(VipJamDispatcher.P_MASTER in ids)
+        assertTrue(VipJamDispatcher.P_BASS_ENABLE in ids)
+        assertTrue(VipJamDispatcher.P_BASS_GAIN in ids)
+        assertTrue(VipJamDispatcher.F_EQ in ids)
+        assertTrue(VipJamDispatcher.F_REVERB in ids)
+        val bassGain = sink.calls.first { it.first == VipJamDispatcher.P_BASS_GAIN }
+        assertEquals(150, bassGain.second)
+        val eqBands = sink.calls.filter { it.first == VipJamDispatcher.F_EQ }
+        assertEquals(10, eqBands.size)
+        assertEquals(0, eqBands[0].second)
+        assertEquals(-1, eqBands[0].third)
+        assertEquals(6, eqBands[6].third)
     }
 
     @Test

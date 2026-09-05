@@ -12,10 +12,23 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.vipjam.dsp.PresetApplier
+import com.vipjam.dsp.VipJamDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class VipJamService : Service() {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val dispatcher = VipJamDispatcher(0)
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        dispatcher.release()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -47,14 +60,31 @@ class VipJamService : Service() {
                 val profile = intent.getStringExtra(EXTRA_PROFILE).orEmpty()
                 applyProfile(profile)
             }
+            ACTION_APPLY_PRESET -> {
+                val json = intent.getStringExtra(EXTRA_PRESET_JSON).orEmpty()
+                val master = intent.getBooleanExtra(EXTRA_MASTER_ENABLED, true)
+                scope.launch { applyPreset(json, master) }
+            }
         }
         return START_STICKY
     }
 
     private fun applyMaster(on: Boolean) {
+        scope.launch {
+            if (!dispatcher.create()) return@launch
+            dispatcher.setParam(VipJamDispatcher.P_MASTER, if (on) 1 else 0)
+            dispatcher.enabled = on
+        }
     }
 
     private fun applyProfile(profile: String) {
+    }
+
+    private fun applyPreset(settingsJson: String, masterOn: Boolean) {
+        if (settingsJson.isBlank()) return
+        if (!dispatcher.create()) return
+        PresetApplier.apply(dispatcher, settingsJson, masterOn)
+        dispatcher.enabled = masterOn
     }
 
     private fun ensureChannel() {
@@ -86,8 +116,10 @@ class VipJamService : Service() {
         const val ACTION_STOP = "com.vipjam.action.STOP"
         const val ACTION_TOGGLE_MASTER = "com.vipjam.action.TOGGLE_MASTER"
         const val ACTION_SET_PROFILE = "com.vipjam.action.SET_PROFILE"
+        const val ACTION_APPLY_PRESET = "com.vipjam.action.APPLY_PRESET"
         const val EXTRA_MASTER_ENABLED = "master_enabled"
         const val EXTRA_PROFILE = "profile"
+        const val EXTRA_PRESET_JSON = "preset_json"
 
         fun start(context: Context, masterOn: Boolean) {
             val intent = Intent(context, VipJamService::class.java).apply {
@@ -101,6 +133,15 @@ class VipJamService : Service() {
             val intent = Intent(context, VipJamService::class.java).apply {
                 action = ACTION_SET_PROFILE
                 putExtra(EXTRA_PROFILE, profile)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun applyPreset(context: Context, settingsJson: String, masterOn: Boolean) {
+            val intent = Intent(context, VipJamService::class.java).apply {
+                action = ACTION_APPLY_PRESET
+                putExtra(EXTRA_PRESET_JSON, settingsJson)
+                putExtra(EXTRA_MASTER_ENABLED, masterOn)
             }
             ContextCompat.startForegroundService(context, intent)
         }

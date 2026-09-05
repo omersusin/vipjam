@@ -32,7 +32,9 @@ import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
+import com.vipjam.service.VipJamService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -106,10 +108,16 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                     entry = entry,
                     onApply = {
                         scope.launch {
+                            val master = context.prefs.data.first()[
+                                VipJamPrefs.MASTER_ENABLE,
+                            ] ?: false
                             context.prefs.edit {
                                 it[VipJamPrefs.ACTIVE_PRESET] = entry.name
                             }
-                            message("${entry.name} is now active")
+                            VipJamService.applyPreset(
+                                context, entry.settingsJson, master,
+                            )
+                            message("${entry.name} sent to driver")
                         }
                     },
                     onDelete = {

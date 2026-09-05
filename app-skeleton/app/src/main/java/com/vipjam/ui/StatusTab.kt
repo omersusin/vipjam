@@ -7,17 +7,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.vipjam.BuildConfig
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
+import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 @Composable
 fun StatusTab(store: PresetStore) {
@@ -33,6 +39,22 @@ fun StatusTab(store: PresetStore) {
         .collectAsState(initial = null)
     val count by remember(store) { store.entries.map { it.size } }
         .collectAsState(initial = 0)
+    var driver by remember { mutableStateOf("probing…") }
+    LaunchedEffect(Unit) {
+        driver = withContext(Dispatchers.IO) {
+            val d = VipJamDispatcher(0)
+            try {
+                if (!d.create()) {
+                    "not installed"
+                } else {
+                    val v = d.getParam(VipJamDispatcher.GET_VERSION_CODE)
+                    if (v == null) "unreachable" else "driver v$v"
+                }
+            } finally {
+                d.release()
+            }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -46,5 +68,6 @@ fun StatusTab(store: PresetStore) {
         Text("Profile: $profile")
         Text("Active preset: ${activePreset ?: "none"}")
         Text("Stored presets: $count")
+        Text("Driver: $driver")
     }
 }
