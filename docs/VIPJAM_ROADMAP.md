@@ -459,6 +459,9 @@ inaudible; fixed, range to 24dB) applied from day one.
   `vipjam://preset?c=` link + Wavelet/Peace/Poweramp exports; update checker
   (forked endpoint); `vipjam.log` (2MB rotation); QS Tile + app shortcuts;
   Crowdin (TR first); F-Droid fastlane (EN+TR).
+  (done: link pack/unpack in `tools/convert_v2_to_v3.py`, `--pack-link` /
+  `--unpack-link`, self-tested round-trip; `presets/Movie.v3.json` +
+  `presets/Game.v3.json` shipped).
 - Service/root: `VipJamService` (FGS **specialUse**, START_STICKY, boot-safe on
   Android 15), global vs per-session, `AudioSessionMonitor` (callback +
   privileged reflection else root dumpsys), per-app mode also via

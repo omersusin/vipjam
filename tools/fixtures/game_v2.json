@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 2,
+  "name": "Game",
+  "masterLimiter": {
+    "threshold": 100,
+    "outputVolume": 100,
+    "channelPan": 0
+  },
+  "playbackGainControl": {
+    "enable": true,
+    "strength": 225,
+    "maxGain": 300,
+    "outputThreshold": 75
+  },
+  "fetCompressor": {
+    "enable": true,
+    "threshold": -18,
+    "ratio": 50,
+    "kneeAuto": true,
+    "knee": 0,
+    "kneeMulti": 0,
+    "gainAuto": true,
+    "gain": 0,
+    "attackAuto": true,
+    "attack": 20,
+    "maxAttack": 80,
+    "releaseAuto": true,
+    "release": 50,
+    "maxRelease": 100,
+    "crest": 100,
+    "adapt": 50,
+    "noClip": true
+  },
+  "equalizer": {
+    "enable": true,
+    "bandCount": 10,
+    "bands": [-1.0, 0.0, 1.0, 2.0, 3.0, 5.0, 6.0, 5.0, 3.0, 0.0],
+    "presetId": null
+  },
+  "convolver": {
+    "enable": false,
+    "kernelFile": "",
+    "crossChannel": 0
+  },
+  "fieldSurround": {
+    "enable": true,
+    "widening": 5,
+    "midImage": 8,
+    "depth": 4
+  },
+  "stereoImager": {
+    "enable": true,
+    "lowWidth": 100,
+    "midWidth": 130,
+    "highWidth": 130,
+    "lowCrossover": 200,
+    "highCrossover": 4000
+  },
+  "reverb": {
+    "enable": true,
+    "roomSize": 2,
+    "width": 2,
+    "damp": 4,
+    "wet": 8,
+    "dry": 75
+  },
+  "dynamicSystem": {
+    "enable": true,
+    "presetId": null,
+    "device": 0,
+    "strength": 35,
+    "xLow": 600,
+    "xHigh": 5400,
+    "yLow": 60,
+    "yHigh": 105,
+    "sideGainLow": 10,
+    "sideGainHigh": 20
+  },
+  "bass": {
+    "enable": true,
+    "mode": 2,
+    "frequency": 55,
+    "gain": 300,
+    "antiPop": true
+  },
+  "clarity": {
+    "enable": true,
+    "mode": 2,
+    "gain": 150
+  },
+  "cure": {
+    "enable": false,
+    "crossfeedPreset": 0
+  },
+  "tubeSimulator": {
+    "enable": false
+  }
+}

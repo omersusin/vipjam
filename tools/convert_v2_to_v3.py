@@ -28,6 +28,7 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 import xml.etree.ElementTree as ET
@@ -272,6 +273,30 @@ def validate_v3(p: dict[str, Any]) -> list[str]:
     return errs
 
 
+LINK_SCHEME = "vipjam://preset?c="
+
+
+def pack_link(p: dict[str, Any]) -> str:
+    raw = json.dumps(p, separators=(",", ":"), ensure_ascii=False).encode()
+    return LINK_SCHEME + base64.urlsafe_b64encode(raw).decode()
+
+
+def unpack_link(link: str) -> dict[str, Any]:
+    if not link.startswith(LINK_SCHEME):
+        raise ValueError("not a vipjam preset link")
+    try:
+        raw = base64.urlsafe_b64decode(link[len(LINK_SCHEME):] + "==")
+    except Exception:
+        raise ValueError("link payload is not valid base64")
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError:
+        raise ValueError("link payload is not valid JSON")
+    if not isinstance(obj, dict):
+        raise ValueError("link payload must be an object")
+    return obj
+
+
 def self_test() -> int:
     base = Path(__file__).resolve().parent / "fixtures"
     fails = 0
@@ -310,6 +335,22 @@ def self_test() -> int:
     merged["route"] = "headset"
     merged["masterEnable"] = jprefs["dsp.masterswitch.enable"]
     check(validate_v3(merged) == [], "merged vipjam preset validates")
+
+    link = pack_link(merged)
+    check(link.startswith(LINK_SCHEME), "link packs with scheme")
+    back = unpack_link(link)
+    check(back == merged, "link round-trips preset exactly")
+    check(validate_v3(back) == [], "unpacked link validates")
+    try:
+        unpack_link("https://example.com/x")
+        check(False, "bad scheme rejected")
+    except ValueError:
+        check(True, "bad scheme rejected")
+    try:
+        unpack_link(LINK_SCHEME + "!!!")
+        check(False, "bad payload rejected")
+    except ValueError:
+        check(True, "bad payload rejected")
     return 1 if fails else 0
 
 
@@ -325,6 +366,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--route", default=None,
                    help="james route (default: detected from filename)")
     p.add_argument("--name", default=None)
+    p.add_argument("--pack-link", action="store_true",
+                   help="output vipjam://preset link instead of JSON")
+    p.add_argument("--unpack-link", action="store_true",
+                   help="input is a vipjam://preset link; print its JSON")
     p.add_argument("--self-test", action="store_true")
     return p
 
@@ -341,7 +386,9 @@ def main(argv: list[str] | None = None) -> int:
         encoding="utf-8"
     )
     try:
-        if args.input.suffix == ".xml" or text.lstrip().startswith("<"):
+        if args.unpack_link:
+            out = unpack_link(text.strip())
+        elif args.input.suffix == ".xml" or text.lstrip().startswith("<"):
             prefs = parse_james_prefs(text)
             route = args.route or detect_route(args.input)
             out: dict[str, Any] = {
@@ -375,7 +422,10 @@ def main(argv: list[str] | None = None) -> int:
         for e in errs:
             print(f"invalid: {e}", file=sys.stderr)
         return 3
-    rendered = json.dumps(out, indent=2, ensure_ascii=False)
+    if args.pack_link:
+        rendered = pack_link(out)
+    else:
+        rendered = json.dumps(out, indent=2, ensure_ascii=False)
     if args.output is not None:
         args.output.write_text(rendered + "\n", encoding="utf-8")
         print(f"wrote {args.output} (origin={out['origin']})", file=sys.stderr)
