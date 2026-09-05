@@ -43,4 +43,5 @@ dependencies {
     implementation(libs.activity.compose)
     implementation(libs.lifecycle.runtime)
     implementation(libs.coroutines.android)
+    implementation(libs.datastore.preferences)
 }

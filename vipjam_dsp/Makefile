@@ -33,11 +33,11 @@ $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 	@mkdir -p $(OBJDIR)
 	@for f in $(JAMES_SRC); do \
 	  o="$(OBJDIR)/$$(echo $$f | tr '/.' '__').o"; \
-	  if [ ! -f "$$o" ]; then $(CC) -c $(CFLAGS_JAMES) $(INC_JAMES) "$$f" -o "$$o" || exit 1; fi; \
+	  if [ ! -f "$$o" ]; then echo "CC $$f"; $(CC) -c $(CFLAGS_JAMES) $(INC_JAMES) "$$f" -o "$$o" || exit 1; fi; \
 	done
 	@for f in $(VIPER_SRC); do \
 	  o="$(OBJDIR)/$$(echo $$f | tr '/.' '__').o"; \
-	  if [ ! -f "$$o" ]; then $(CXX) -c $(CXXFLAGS_VIPER) $(INC_VIPER) "$$f" -o "$$o" || exit 1; fi; \
+	  if [ ! -f "$$o" ]; then echo "CXX $$f"; $(CXX) -c $(CXXFLAGS_VIPER) $(INC_VIPER) "$$f" -o "$$o" || exit 1; fi; \
 	done
 	ar rcs $@ $(OBJDIR)/*.o
 
