@@ -436,8 +436,10 @@ inaudible; fixed, range to 24dB) applied from day one.
 - Data: DataStore `vipjam_prefs` (`.catch` IOException-only); Room `vipjam.db`
   v1 (Preset schema **v3**: `origin viper/james/vipjam` + settings_json;
   EqPreset; DeviceSettings); storage `Preset/*.json`, `Kernel/*.{wav,irs,flac}`,
-  `DDC/*.vdc`, `LiveProg/*.eel`; import ViPER v2 JSON + `dsp.*` prefs +
-  EAPO `GraphicEQ:`/`Filter:` text + REW + autoeq.app/squig.link.
+   `DDC/*.vdc`, `LiveProg/*.eel`; import ViPER v2 JSON + `dsp.*` prefs +
+   EAPO `GraphicEQ:`/`Filter:` text + REW + autoeq.app/squig.link.
+   (done: `PresetImporter`/`PresetStore` v3 JSON + link import over DataStore
+   with JVM unit tests in CI; Room upgrade deferred).
 - EQ UI: band counts 10/15/25/31 + custom range (Poweramp pattern 5-32),
   parametric mode (per-band freq/Q/type), `EqCurveGraph` + edit dialog,
   DynEQ tabs, drag-band + long-press add/delete + undo (alienware pattern),
