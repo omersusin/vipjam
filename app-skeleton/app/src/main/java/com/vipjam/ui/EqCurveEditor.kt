@@ -70,6 +70,19 @@ fun EqCurveEditorCard(
     val padRightPx = with(density) { 12.dp.toPx() }
     val padTopPx = with(density) { 12.dp.toPx() }
     val padBottomPx = with(density) { 24.dp.toPx() }
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val zeroColor = MaterialTheme.colorScheme.outline
+    val curveColor = MaterialTheme.colorScheme.primary
+    val dotFill = MaterialTheme.colorScheme.primaryContainer
+    val dotCore = MaterialTheme.colorScheme.primary
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val labelStyle = TextStyle(fontSize = 10.sp, color = labelColor)
+    val strokePx = with(density) { 3.dp.toPx() }
+    val dotOuter = with(density) { 12.dp.toPx() }
+    val dotOuterSel = with(density) { 16.dp.toPx() }
+    val dotInner = with(density) { 6.dp.toPx() }
+    val dotInnerSel = with(density) { 8.dp.toPx() }
+    val labelGapPx = with(density) { 4.dp.toPx() }
 
     fun bandCount() = bands.size
 
@@ -126,13 +139,6 @@ fun EqCurveEditorCard(
             ) {
                 val w = size.width
                 val h = size.height
-                val gridColor = MaterialTheme.colorScheme.outlineVariant
-                val zeroColor = MaterialTheme.colorScheme.outline
-                val curveColor = MaterialTheme.colorScheme.primary
-                val labelStyle = TextStyle(
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 val dbSteps = listOf(12f, 6f, 0f, -6f, -12f)
                 for (db in dbSteps) {
                     val y = EqCurveMath.dbToY(db, h, padTopPx, padBottomPx)
@@ -165,17 +171,17 @@ fun EqCurveEditorCard(
                         EqCurveMath.dbToY(db.toFloat(), h, padTopPx, padBottomPx),
                     )
                 }
-                drawPath(smoothPathThrough(points), curveColor, style = Stroke(width = 3.dp.toPx()))
+                drawPath(smoothPathThrough(points), curveColor, style = Stroke(width = strokePx))
                 points.forEachIndexed { i, p ->
                     val isSel = i == selected
                     drawCircle(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        radius = (if (isSel) 16.dp else 12.dp).toPx(),
+                        dotFill,
+                        radius = if (isSel) dotOuterSel else dotOuter,
                         center = p,
                     )
                     drawCircle(
-                        MaterialTheme.colorScheme.primary,
-                        radius = (if (isSel) 8.dp else 6.dp).toPx(),
+                        dotCore,
+                        radius = if (isSel) dotInnerSel else dotInner,
                         center = p,
                     )
                 }
@@ -189,7 +195,7 @@ fun EqCurveEditorCard(
                         layout,
                         topLeft = Offset(
                             x - layout.size.width / 2f,
-                            h - padBottomPx + 4.dp.toPx(),
+                            h - padBottomPx + labelGapPx,
                         ),
                     )
                 }
