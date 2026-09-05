@@ -398,9 +398,14 @@ inaudible; fixed, range to 24dB) applied from day one.
   bridge accumulates chunks itself and loads via direct `SetKernel` /
   `SetKernelStereo`, with own CRC32 + kernelId tracking (same skip-if-same
   semantics as `CommitKernelBuffer`).
+- UI-scale → model-scale: ViPER setters take app units (reverb/clarity 0-100%
+  → /100 like `DispatchCommand`; EQ dB, bass factor, FET params direct).
+  AnalogX zeroes output for the first SR/4 frames (click-guard warmup) —
+  tests must stream multiple `process()` calls like real audio.
 - Status: 130 objects (85 James + 45 ViPER) in `libvipjam_engines.a`;
-  `make test` 84/84 green on host (params/shim/interleave/chain/context/
-  engine smoke/DDC both engines/IR both engines/golden sine RMS 0.267).
+  `make test` 96/96 green on host (params/shim/interleave/chain/context/
+  engine smoke/DDC both engines/IR both engines/LiveProg single+multi/
+  parametric both engines/golden sine RMS 0.267).
 ### 4.4 Entry points
 - HIDL: classic `effect_interface_s` (process/command/descriptor).
 - AIDL: separate `libvipjam_aidl`-style driver behind `IEffect`

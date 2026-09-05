@@ -1,0 +1,6 @@
+id=vipjam
+name=VipJam Fused DSP
+version=v0.1.0
+versionCode=1
+author=omersusin
+description=Fused ViPER4AndroidFX-RE + JamesDSP audio engine. Single driver, single app. HIDL mode (AML-compatible). AIDL mode conflicts with AML - disable AML for AIDL.
