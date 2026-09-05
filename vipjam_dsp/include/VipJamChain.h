@@ -20,6 +20,20 @@ public:
     int loadIR(const float *frames, unsigned int channels, unsigned int len);
     int loadLiveProg(const char *eelText);
     int loadLiveProgMulti(const char **scripts, int n);
+    void setJamesEQ(const double *freqHz, const double *gainDb, int interp);
+    void setJamesBass(float maxGainDb);
+    void setJamesComp(float tc, int gran, int tfres);
+    void setJamesReverb(int preset);
+    void setJamesTube(double dbGain);
+    void setJamesStereo(float mix01);
+    void setJamesXfeed(int mode);
+    void setViperEQBand(unsigned int band, float levelDb);
+    void setViperBass(int mode, float factor);
+    void setViperReverb(float room, float width, float damp, float wet,
+                        float dry);
+    void setViperClarity(int mode, float gain);
+    void setViperFET(int param, float value);
+    void setViperAnalogX(int mode);
     void viperSetDDC(const float *c44, unsigned int n44, const float *c48,
                      unsigned int n48);
     void viperSetKernelMono(const float *frames, unsigned int len);

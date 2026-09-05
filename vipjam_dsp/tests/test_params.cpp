@@ -356,6 +356,89 @@ static void test_liveprog_multi(void) {
     CHECK(allFiniteClamped(buf), "chained liveprog finite + clamped");
 }
 
+static void test_parametric_james(void) {
+    VipJamChain chain;
+    chain.setSamplingRate(44100);
+    static const double freq[15] = {25, 40, 63, 100, 160, 250, 400, 630, 1000,
+                                    1600, 2500, 4000, 6300, 10000, 16000};
+    double flat[15] = {0};
+    double boost[15] = {0};
+    boost[7] = 6.0;
+    chain.setJamesEQ(freq, flat, 0);
+    chain.setJamesBass(5.0f);
+    chain.setJamesComp(0.22f, 2, 0);
+    chain.setJamesReverb(10);
+    chain.setJamesTube(2.0);
+    chain.setJamesStereo(0.5f);
+    chain.setJamesXfeed(1);
+    chain.setStageEnabled(VJ_STAGE_JAMES_EQ, true);
+    chain.setStageEnabled(VJ_STAGE_JAMES_BASS, true);
+    chain.setStageEnabled(VJ_STAGE_JAMES_REVERB, true);
+    chain.setStageEnabled(VJ_STAGE_JAMES_TUBE, true);
+    std::vector<float> buf(2048 * 2);
+    for (size_t i = 0; i < buf.size(); i += 2) {
+        float s = sinf((float)i * 0.03f) * 0.4f;
+        buf[i] = s;
+        buf[i + 1] = s;
+    }
+    chain.process(buf);
+    CHECK(allFiniteClamped(buf), "james params finite + clamped");
+    chain.setJamesEQ(freq, boost, 0);
+    std::vector<float> buf2(2048 * 2);
+    for (size_t i = 0; i < buf2.size(); i += 2) {
+        float s = sinf((float)i * 0.03f) * 0.4f;
+        buf2[i] = s;
+        buf2[i + 1] = s;
+    }
+    chain.process(buf2);
+    float diff = 0;
+    for (size_t i = 512; i < buf.size(); i++) {
+        float d = buf2[i] - buf[i];
+        diff += d * d;
+    }
+    CHECK(diff > 1e-6f, "james EQ change audible");
+}
+
+static void test_parametric_viper(void) {
+    VipJamChain chain;
+    chain.setSamplingRate(44100);
+    chain.setViperEQBand(3, 6.0f);
+    chain.setViperEQBand(99, 6.0f);
+    chain.setViperBass(1, 4.0f);
+    chain.setViperReverb(50, 50, 50, 30, 70);
+    chain.setViperClarity(1, 50.0f);
+    chain.setViperFET(1, -20.0f);
+    chain.setViperAnalogX(1);
+    chain.setViperFET(99, 1.0f);
+    chain.setStageEnabled(VJ_STAGE_VIPER_IIR, true);
+    chain.setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+    chain.setStageEnabled(VJ_STAGE_VIPER_REVERB, true);
+    chain.setStageEnabled(VJ_STAGE_VIPER_CLARITY, true);
+    chain.setStageEnabled(VJ_STAGE_VIPER_FET, true);
+    chain.setStageEnabled(VJ_STAGE_VIPER_ANALOGX, true);
+    float peak = 0;
+    bool clamped = true;
+    for (int b = 0; b < 4; b++) {
+        std::vector<float> buf(4096 * 2);
+        for (size_t i = 0; i < buf.size(); i += 2) {
+            float s = sinf((float)(i + b) * 0.03f) * 0.4f;
+            buf[i] = s;
+            buf[i + 1] = s;
+        }
+        chain.process(buf);
+        for (size_t i = 0; i < buf.size(); i++)
+            if (buf[i] != buf[i] || buf[i] > 1.0f || buf[i] < -1.0f)
+                clamped = false;
+        if (b == 3)
+            for (size_t i = 0; i < buf.size(); i++) {
+                float a = buf[i] < 0 ? -buf[i] : buf[i];
+                if (a > peak) peak = a;
+            }
+    }
+    CHECK(clamped, "viper params finite + clamped");
+    CHECK(peak > 0.01f, "viper chain outputs signal");
+}
+
 static void test_golden_sine(void) {    VipJamChain chain;
     chain.setSamplingRate(44100);
     chain.setStageEnabled(VJ_STAGE_JAMES_COMP, true);
@@ -395,6 +478,8 @@ int main(void) {
     test_ir_viper();
     test_liveprog_single();
     test_liveprog_multi();
+    test_parametric_james();
+    test_parametric_viper();
     test_golden_sine();
     if (failures == 0) printf("ALL GREEN\n");
     else printf("%d FAILURES\n", failures);

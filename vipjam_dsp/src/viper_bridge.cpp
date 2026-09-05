@@ -110,8 +110,7 @@ static unsigned vj_crc32(const unsigned char *data, unsigned len) {
 }
 
 void vj_viper_kernel_commit(vj_viper *v, unsigned int totalFloats,
-                            unsigned int crc32, unsigned int kernelId) {
-    if (v->pendingKernel.size() != totalFloats || totalFloats == 0) {
+                            unsigned int crc32, unsigned int kernelId) {    if (v->pendingKernel.size() != totalFloats || totalFloats == 0) {
         v->pendingKernel.clear();
         v->pendingTotal = 0;
         return;
@@ -140,4 +139,47 @@ void vj_viper_kernel_commit(vj_viper *v, unsigned int totalFloats,
     v->pendingKernel.clear();
     v->pendingTotal = 0;
     v->engine.convolver.Reset();
+}
+
+static float vj_clamp(float v, float lo, float hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+void vj_viper_set_eq_band(vj_viper *v, unsigned int band, float levelDb) {
+    if (band >= 10) return;
+    v->engine.iirFilter.SetBandLevel(band, vj_clamp(levelDb, -12.0f, 12.0f));
+}
+
+void vj_viper_set_bass(vj_viper *v, int mode, float factor) {
+    if (mode < 0) mode = 0;
+    if (mode > 2) mode = 2;
+    v->engine.viperBass.SetProcessMode((ViPERBass::ProcessMode)mode);
+    v->engine.viperBass.SetBassFactor(factor);
+}
+
+void vj_viper_set_reverb(vj_viper *v, float room, float width, float damp,
+                         float wet, float dry) {
+    v->engine.reverberation.SetRoomSize(vj_clamp(room, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetWidth(vj_clamp(width, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetDamp(vj_clamp(damp, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetWet(vj_clamp(wet, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetDry(vj_clamp(dry, 0.0f, 100.0f) / 100.0f);
+}
+
+void vj_viper_set_clarity(vj_viper *v, int mode, float gain) {
+    if (mode < 0) mode = 0;
+    if (mode > 2) mode = 2;
+    v->engine.viperClarity.SetProcessMode((ViPERClarity::ClarityMode)mode);
+    v->engine.viperClarity.SetClarity(vj_clamp(gain, 0.0f, 100.0f) / 100.0f);
+}
+
+void vj_viper_set_fet(vj_viper *v, int param, float value) {
+    if (param < 0 || param > 16) return;
+    v->engine.fetCompressor.SetParameter((FETCompressor::Parameter)param,
+                                         value);
+}
+
+void vj_viper_set_analogx(vj_viper *v, int mode) {
+    if (mode < 0) mode = 0;
+    v->engine.analogX.SetProcessingModel(mode);
 }

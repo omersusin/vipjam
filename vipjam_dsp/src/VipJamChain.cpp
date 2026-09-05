@@ -72,6 +72,62 @@ int VipJamChain::loadLiveProgMulti(const char **scripts, int n) {
                                         scripts, n);
 }
 
+void VipJamChain::setJamesEQ(const double *freqHz, const double *gainDb,
+                             int interp) {
+    vj_james_set_eq15(static_cast<vj_james_t *>(jdsp_), freqHz, gainDb,
+                      interp);
+}
+
+void VipJamChain::setJamesBass(float maxGainDb) {
+    vj_james_set_bass(static_cast<vj_james_t *>(jdsp_), maxGainDb);
+}
+
+void VipJamChain::setJamesComp(float tc, int gran, int tfres) {
+    vj_james_set_comp(static_cast<vj_james_t *>(jdsp_), tc, gran, tfres);
+}
+
+void VipJamChain::setJamesReverb(int preset) {
+    vj_james_set_reverb(static_cast<vj_james_t *>(jdsp_), preset);
+}
+
+void VipJamChain::setJamesTube(double dbGain) {
+    vj_james_set_tube(static_cast<vj_james_t *>(jdsp_), dbGain);
+}
+
+void VipJamChain::setJamesStereo(float mix01) {
+    vj_james_set_stereo(static_cast<vj_james_t *>(jdsp_), mix01);
+}
+
+void VipJamChain::setJamesXfeed(int mode) {
+    vj_james_set_xfeed(static_cast<vj_james_t *>(jdsp_), mode);
+}
+
+void VipJamChain::setViperEQBand(unsigned int band, float levelDb) {
+    vj_viper_set_eq_band(static_cast<vj_viper *>(viper_), band, levelDb);
+}
+
+void VipJamChain::setViperBass(int mode, float factor) {
+    vj_viper_set_bass(static_cast<vj_viper *>(viper_), mode, factor);
+}
+
+void VipJamChain::setViperReverb(float room, float width, float damp,
+                                 float wet, float dry) {
+    vj_viper_set_reverb(static_cast<vj_viper *>(viper_), room, width, damp,
+                        wet, dry);
+}
+
+void VipJamChain::setViperClarity(int mode, float gain) {
+    vj_viper_set_clarity(static_cast<vj_viper *>(viper_), mode, gain);
+}
+
+void VipJamChain::setViperFET(int param, float value) {
+    vj_viper_set_fet(static_cast<vj_viper *>(viper_), param, value);
+}
+
+void VipJamChain::setViperAnalogX(int mode) {
+    vj_viper_set_analogx(static_cast<vj_viper *>(viper_), mode);
+}
+
 void VipJamChain::viperSetDDC(const float *c44, unsigned int n44,
                               const float *c48, unsigned int n48) {
     vj_viper_set_ddc(static_cast<vj_viper *>(viper_), c44, n44, c48, n48);

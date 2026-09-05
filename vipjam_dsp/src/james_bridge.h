@@ -19,6 +19,14 @@ int vj_james_load_ir(vj_james_t *j, const float *frames, unsigned int channels,
                      unsigned int len);
 int vj_james_load_liveprog(vj_james_t *j, const char *eelText);
 int vj_james_load_liveprog_multi(vj_james_t *j, const char **scripts, int n);
+void vj_james_set_eq15(vj_james_t *j, const double *freqHz,
+                       const double *gainDb, int interpPchip0Makima1);
+void vj_james_set_bass(vj_james_t *j, float maxGainDb);
+void vj_james_set_comp(vj_james_t *j, float tc, int gran, int tfres);
+void vj_james_set_reverb(vj_james_t *j, int preset);
+void vj_james_set_tube(vj_james_t *j, double dbGain);
+void vj_james_set_stereo(vj_james_t *j, float mix01);
+void vj_james_set_xfeed(vj_james_t *j, int mode);
 
 #ifdef __cplusplus
 }

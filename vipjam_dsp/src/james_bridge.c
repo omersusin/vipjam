@@ -184,6 +184,56 @@ int vj_james_load_liveprog_multi(vj_james_t *j, const char **scripts, int n) {
     return rc;
 }
 
+void vj_james_set_eq15(vj_james_t *j, const double *freqHz,
+                       const double *gainDb, int interp) {
+    double f[15], g[15];
+    for (int i = 0; i < 15; i++) {
+        f[i] = freqHz[i] <= 0 ? 20.0 : freqHz[i];
+        g[i] = gainDb[i] < -12.0 ? -12.0 : (gainDb[i] > 12.0 ? 12.0 : gainDb[i]);
+    }
+    MultimodalEqualizerAxisInterpolation(&j->lib, interp ? 1 : 0, 5, f, g);
+}
+
+void vj_james_set_bass(vj_james_t *j, float maxGainDb) {
+    if (maxGainDb < 0) maxGainDb = 0;
+    if (maxGainDb > 15) maxGainDb = 15;
+    BassBoostSetParam(&j->lib, maxGainDb);
+}
+
+void vj_james_set_comp(vj_james_t *j, float tc, int gran, int tfres) {
+    if (tc < 0.06f) tc = 0.06f;
+    if (tc > 0.3f) tc = 0.3f;
+    if (gran < 0) gran = 0;
+    if (gran > 4) gran = 4;
+    if (tfres < 0) tfres = 0;
+    if (tfres > 3) tfres = 3;
+    CompressorSetParam(&j->lib, tc, gran, tfres, 1);
+}
+
+void vj_james_set_reverb(vj_james_t *j, int preset) {
+    if (preset < 0) preset = 0;
+    if (preset > 18) preset = 18;
+    Reverb_SetParam(&j->lib, preset);
+}
+
+void vj_james_set_tube(vj_james_t *j, double dbGain) {
+    if (dbGain < -3.0) dbGain = -3.0;
+    if (dbGain > 12.0) dbGain = 12.0;
+    VacuumTubeSetGain(&j->lib, dbGain);
+}
+
+void vj_james_set_stereo(vj_james_t *j, float mix01) {
+    if (mix01 < 0) mix01 = 0;
+    if (mix01 > 1) mix01 = 1;
+    StereoEnhancementSetParam(&j->lib, mix01);
+}
+
+void vj_james_set_xfeed(vj_james_t *j, int mode) {
+    if (mode < 0) mode = 0;
+    if (mode > 5) mode = 5;
+    CrossfeedChangeMode(&j->lib, mode);
+}
+
 int vj_james_load_ir(vj_james_t *j, const float *frames, unsigned int channels,
                      unsigned int len) {
     if (!frames || len == 0) return -1;
