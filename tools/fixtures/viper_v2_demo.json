@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "name": "Demo",
+  "masterLimiter": {
+    "threshold": 100,
+    "outputVolume": 100,
+    "channelPan": 0
+  },
+  "playbackGainControl": {
+    "enable": true,
+    "strength": 100,
+    "maxGain": 100,
+    "outputThreshold": 100
+  },
+  "equalizer": {
+    "enable": true,
+    "bandCount": 10,
+    "bands": [3.0, 1.5, 0.0, -1.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0],
+    "presetId": null
+  },
+  "bass": {
+    "enable": true,
+    "mode": 0,
+    "frequency": 55,
+    "gain": 80,
+    "antiPop": true
+  },
+  "clarity": {
+    "enable": true,
+    "mode": 0,
+    "gain": 100
+  },
+  "reverb": {
+    "enable": false,
+    "roomSize": 0,
+    "width": 0,
+    "damp": 0,
+    "wet": 0,
+    "dry": 50
+  },
+  "convolver": {
+    "enable": true,
+    "kernelFile": "demo.irs",
+    "crossChannel": 0
+  },
+  "ddc": {
+    "enable": false,
+    "device": ""
+  },
+  "cure": {
+    "enable": false,
+    "crossfeedPreset": 0
+  },
+  "tubeSimulator": {
+    "enable": false
+  }
+}

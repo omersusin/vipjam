@@ -613,7 +613,8 @@ inaudible; fixed, range to 24dB) applied from day one.
   gold tests. App skeleton: `com.vipjam` (theme/nav/DI/DB/prefs) + service +
   root + Single-driver shim (both effects, James→ViPER) as fallback.
 - **Faz 2** — fused core: James block + ViPER block + single DDC/Conv/Tube +
-  SHM + HIDL wiring + Magisk HIDL module + preset v2→v3 migration.
+  SHM + HIDL wiring + Magisk HIDL module + preset v2→v3 migration
+  (migration done: `tools/convert_v2_to_v3.py` + fixtures + CI smoke test).
   Docs convention from day one: `docs/<area>/HOW_TO.md`
   (Setup → Code → Integration → Test → Verify) + `.agent/skills`
   (james-bond pattern); every implementation PR updates its HOW_TO.

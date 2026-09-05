@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="dsp.masterswitch.enable" value="true" />
+    <string name="dsp.masterswitch.limthreshold">-0.1</string>
+    <string name="dsp.masterswitch.limrelease">60</string>
+    <string name="dsp.masterswitch.postgain">0</string>
+    <boolean name="dsp.tone.enable" value="true" />
+    <string name="dsp.tone.eq">25;40;63;100;160;250;400;630;1000;1600;2500;4000;6300;10000;16000;0.0;0.0;2.0;3.0;1.0;0.0;-1.0;0.0;0.0;1.0;2.0;3.0;2.0;1.0;0.0</string>
+    <string name="dsp.tone.eq.custom">25;40;63;100;160;250;400;630;1000;1600;2500;4000;6300;10000;16000;0.0;0.0;2.0;3.0;1.0;0.0;-1.0;0.0;0.0;1.0;2.0;3.0;2.0;1.0;0.0</string>
+    <string name="dsp.tone.filtertype">3</string>
+    <string name="dsp.tone.interpolation">0</string>
+    <boolean name="dsp.bass.enable" value="true" />
+    <string name="dsp.bass.maxgain">5</string>
+    <boolean name="dsp.bs2b.enable" value="true" />
+    <string name="dsp.bs2b.mode">5</string>
+    <boolean name="dsp.headphone.enable" value="false" />
+    <string name="dsp.headphone.preset">15</string>
+    <boolean name="dsp.convolver.enable" value="false" />
+    <string name="dsp.convolver.files"></string>
+    <boolean name="dsp.liveprog.enable" value="true" />
+    <string name="dsp.liveprog.files">/sdcard/LiveProg/demo.eel</string>
+    <boolean name="dsp.analogmodelling.enable" value="false" />
+    <string name="dsp.analogmodelling.tubedrive">2</string>
+</map>

@@ -18,6 +18,10 @@ jobs:
       - name: Build and test fused DSP (host)
         run: make test
 
+      - name: Preset v2→v3 migration smoke test
+        working-directory: .
+        run: python3 tools/convert_v2_to_v3.py --self-test
+
   apk-debug:
     name: Debug APK
     runs-on: ubuntu-latest
