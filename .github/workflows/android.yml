@@ -44,10 +44,12 @@ jobs:
 
       - name: Verify HAL symbol exports
         run: |
+          NM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
           for abi in arm64-v8a armeabi-v7a x86_64; do
             f="vipjam_dsp/hal/libs/$abi/libvipjam.so"
-            nm -D "$f" | grep -q "AUDIO_EFFECT_LIBRARY_INFO_SYM" || exit 1
-            echo "$abi OK $(stat -c%s "$f") bytes"
+            echo "== $abi $(stat -c%s "$f") bytes"
+            "$NM" -D "$f" | grep -iE "AUDIO_EFFECT|VipJam" || true
+            "$NM" -D "$f" | grep -q "AUDIO_EFFECT_LIBRARY_INFO_SYM" || exit 1
           done
 
       - name: Upload native libs
