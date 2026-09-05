@@ -30,6 +30,7 @@ engines: $(OBJDIR) $(ENGINELIB)
 
 $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 	@echo "compiling engines (one-time, slow)..."
+	@mkdir -p $(OBJDIR)
 	@for f in $(JAMES_SRC); do \
 	  o="$(OBJDIR)/$$(echo $$f | tr '/.' '__').o"; \
 	  if [ ! -f "$$o" ]; then $(CC) -c $(CFLAGS_JAMES) $(INC_JAMES) "$$f" -o "$$o" || exit 1; fi; \
