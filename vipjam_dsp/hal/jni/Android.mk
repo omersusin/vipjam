@@ -30,6 +30,7 @@ LOCAL_CONLYFLAGS := -include unistd.h -Wno-implicit-int -Wno-unused \
 LOCAL_CPPFLAGS := -std=c++17 -fno-exceptions -fno-rtti -fvisibility-inlines-hidden \
     -Wall -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function
 LOCAL_LDLIBS := -llog -lm
-LOCAL_LDFLAGS := -Wl,--gc-sections -Wl,--exclude-libs,ALL
+LOCAL_LDFLAGS := -Wl,--gc-sections -Wl,--exclude-libs,ALL \
+    -Wl,--version-script=$(LOCAL_PATH)/../vipjam.map
 
 include $(BUILD_SHARED_LIBRARY)

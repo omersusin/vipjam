@@ -1,0 +1,6 @@
+{
+global:
+    AUDIO_EFFECT_LIBRARY_INFO_SYM;
+local:
+    *;
+};
