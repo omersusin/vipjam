@@ -30,8 +30,7 @@ import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import com.vipjam.service.VipJamService
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -73,7 +72,7 @@ private fun liveParam(settingsJson: String, group: String, field: String): LiveP
 fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val debounceJobs = remember { mutableMapOf<String, Job>() }
+    val debounce = rememberDebouncedDispatcher(scope)
     val masterOn by context.prefs.data
         .map { it[VipJamPrefs.MASTER_ENABLE] ?: false }
         .collectAsState(initial = false)
@@ -87,6 +86,9 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val active: PresetEntry? =
         entries.find { it.name == activeName } ?: entries.firstOrNull()
     val groups = active?.let { PresetImporter.groupEnables(it.settingsJson) }.orEmpty()
+    val eqBands = remember(active?.settingsJson) {
+        active?.settingsJson?.let { parseEqBands(it) }
+    }
 
     fun persistMaster(on: Boolean) {
         scope.launch {
@@ -125,9 +127,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
         }
         val key = "$group:$field"
-        debounceJobs[key]?.cancel()
-        debounceJobs[key] = scope.launch {
-            delay(120)
+        debounce(key, 120L) {
             if (live != null) {
                 VipJamService.dispatchParam(context, live.id, live.v0, live.v1, live.v2)
             }
@@ -172,6 +172,16 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 "Editing: ${active?.name ?: "no preset — import one first"}",
                 style = MaterialTheme.typography.titleMedium,
             )
+        }
+        if (eqBands != null) {
+            item {
+                EqCurveEditorCard(
+                    bands = eqBands,
+                    onBandChange = { index, db ->
+                        onScalar(VipJamEffects.EQ, index.toString(), db)
+                    },
+                )
+            }
         }
         items(groups, key = { it.first }) { (group, on) ->
             Column {

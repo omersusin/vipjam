@@ -31,6 +31,8 @@ set_permissions() {
     set_perm_recursive $MODPATH$LIBDIR/lib64/soundfx 0 0 0755 0644
     chcon -R u:object_r:vendor_file:s0 $MODPATH$LIBDIR/lib64/soundfx 2>/dev/null
   fi
+  set_perm $MODPATH/vipjam-ctl 0 0 0755
+  set_perm $MODPATH/aml.sh 0 0 0644
 }
 
 ##########################################################################################
