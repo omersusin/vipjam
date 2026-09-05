@@ -1,8 +1,7 @@
 plugins {
-    id("com.android.application") version "8.13.0"
-    id("org.jetbrains.kotlin.android") version "2.4.10"
-    id("com.google.devtools.ksp") version "2.4.10-2.0.3"
-    id("com.google.dagger.hilt.android") version "2.60.1"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -31,7 +30,18 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    buildFeatures {
+        compose = true
     }
+}
+
+dependencies {
+    val bom = libs.compose.bom
+    implementation(platform(bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.core.ktx)
+    implementation(libs.activity.compose)
+    implementation(libs.lifecycle.runtime)
+    implementation(libs.coroutines.android)
 }
