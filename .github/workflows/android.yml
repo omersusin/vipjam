@@ -48,8 +48,8 @@ jobs:
           for abi in arm64-v8a armeabi-v7a x86_64; do
             f="vipjam_dsp/hal/libs/$abi/libvipjam.so"
             echo "== $abi $(stat -c%s "$f") bytes"
-            "$NM" -D "$f" | grep -iE "AUDIO_EFFECT|VipJam" || true
-            "$NM" -D "$f" | grep -q "AUDIO_EFFECT_LIBRARY_INFO_SYM" || exit 1
+            "$NM" -D "$f" | grep -iE "AELI|VipJam" || true
+            "$NM" -D "$f" | grep -qw "AELI" || exit 1
           done
 
       - name: Upload native libs
