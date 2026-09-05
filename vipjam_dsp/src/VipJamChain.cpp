@@ -1,8 +1,10 @@
 #include "VipJamChain.h"
 #include "james_bridge.h"
 #include "viper_bridge.h"
+#include "VipJamParams.h"
 
-VipJamChain::VipJamChain() : samplingRate_(44100), limiterGate_(0.999999f) {
+VipJamChain::VipJamChain()
+    : samplingRate_(44100), master_(true), limiterGate_(0.999999f) {
     for (int i = 0; i < VJ_STAGE_COUNT; i++) enabled_[i] = false;
     jdsp_ = vj_james_create(samplingRate_);
     viper_ = vj_viper_create(samplingRate_);
@@ -134,6 +136,93 @@ void VipJamChain::setLoudnessVolume(float device01, float app01) {
     loudness_.setVolume(device01, app01);
 }
 
+void VipJamChain::setMasterEnabled(bool on) {
+    master_ = on;
+}
+
+void VipJamChain::setLimiter(float threshold01) {
+    if (threshold01 < 0.01f) threshold01 = 0.01f;
+    if (threshold01 > 1.0f) threshold01 = 1.0f;
+    limiterGate_ = threshold01;
+}
+
+static vj_stage_t enableIdToStage(int32_t id) {
+    switch (id) {
+    case 65565: return VJ_STAGE_VIPER_PGC;
+    case 65574: return VJ_STAGE_VIPER_BASS;
+    case 65578: return VJ_STAGE_VIPER_CLARITY;
+    case 65551: return VJ_STAGE_VIPER_IIR;
+    case 65559: return VJ_STAGE_VIPER_REVERB;
+    case 65538: return VJ_STAGE_VIPER_CONV;
+    case 65546: return VJ_STAGE_VIPER_DDC;
+    case 65569: return VJ_STAGE_VIPER_DYNSYS;
+    case 65583: return VJ_STAGE_JAMES_TUBE;
+    case 65581: return VJ_STAGE_VIPER_CURE;
+    case 65584: return VJ_STAGE_VIPER_ANALOGX;
+    case 65610: return VJ_STAGE_VIPER_FET;
+    case 65544: return VJ_STAGE_VIPER_VHE;
+    case 65557: return VJ_STAGE_VIPER_DIFF;
+    case 65603: return VJ_STAGE_VIPER_SPK;
+    default: return VJ_STAGE_COUNT;
+    }
+}
+
+int VipJamChain::setFusedParam(int32_t id, float v0, float v1, float v2) {
+    if (id == 36868) {
+        setMasterEnabled(v0 != 0.0f);
+        return 0;
+    }
+    if (id == 65577) {
+        vj_viper_set_bass(static_cast<vj_viper *>(viper_), 0, v0 / 100.0f);
+        setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+        return 0;
+    }
+    vj_stage_t stage = enableIdToStage(id);
+    if (stage != VJ_STAGE_COUNT) {
+        setStageEnabled(stage, v0 != 0.0f);
+        return 0;
+    }
+    int32_t fused = vipjam_shim_to_fused(id);
+    vj_viper *viper = static_cast<vj_viper *>(viper_);
+    switch (fused) {
+    case VIPJAM_MASTER_ENABLE:
+        setMasterEnabled(v0 != 0.0f);
+        return 0;
+    case VIPJAM_LIMITER:
+        setLimiter(v0);
+        setStageEnabled(VJ_STAGE_LIMITER, true);
+        return 0;
+    case VIPJAM_BASS:
+        vj_viper_set_bass(viper, (int)v1, v0);
+        setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+        return 0;
+    case VIPJAM_EQ:
+        if (v0 < 0.0f) return -1;
+        vj_viper_set_eq_band(viper, (unsigned int)v0, v1);
+        setStageEnabled(VJ_STAGE_VIPER_IIR, true);
+        return 0;
+    case VIPJAM_CLARITY_SPECEX:
+        vj_viper_set_clarity(viper, (int)v1, v0);
+        setStageEnabled(VJ_STAGE_VIPER_CLARITY, true);
+        return 0;
+    case VIPJAM_REVERB:
+        vj_viper_set_reverb3(viper, v0, v1, v2);
+        setStageEnabled(VJ_STAGE_VIPER_REVERB, true);
+        return 0;
+    case VIPJAM_XFEED:
+        vj_james_set_xfeed(static_cast<vj_james_t *>(jdsp_), (int)v0);
+        setStageEnabled(VJ_STAGE_JAMES_XFEED, true);
+        return 0;
+    case VIPJAM_TUBE:
+        vj_james_set_tube(static_cast<vj_james_t *>(jdsp_), (double)v0);
+        setStageEnabled(VJ_STAGE_JAMES_TUBE, true);
+        return 0;
+    default:
+        break;
+    }
+    return -1;
+}
+
 void VipJamChain::viperSetDDC(const float *c44, unsigned int n44,
                               const float *c48, unsigned int n48) {
     vj_viper_set_ddc(static_cast<vj_viper *>(viper_), c44, n44, c48, n48);
@@ -193,6 +282,7 @@ void VipJamChain::process(std::vector<float> &interleavedStereo) {
     uint32_t frames =
         static_cast<uint32_t>(interleavedStereo.size() / 2);
     if (frames == 0) return;
+    if (!master_) return;
     if (anyJamesStageOn()) {
         vj_james_process(static_cast<vj_james_t *>(jdsp_),
                          interleavedStereo.data(), frames);

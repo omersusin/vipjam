@@ -4,3 +4,4 @@ test_vipjam
 *.a
 out*.txt
 p9.log
+test_hal

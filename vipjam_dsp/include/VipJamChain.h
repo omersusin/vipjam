@@ -36,6 +36,10 @@ public:
     void setViperFET(int param, float value);
     void setViperAnalogX(int mode);
     void setLoudnessVolume(float device01, float app01);
+    void setMasterEnabled(bool on);
+    bool isMasterEnabled() const { return master_; }
+    void setLimiter(float threshold01);
+    int setFusedParam(int32_t id, float v0, float v1, float v2);
     void viperSetDDC(const float *c44, unsigned int n44, const float *c48,
                      unsigned int n48);
     void viperSetKernelMono(const float *frames, unsigned int len);
@@ -60,6 +64,7 @@ private:
 
     uint32_t samplingRate_;
     bool enabled_[VJ_STAGE_COUNT];
+    bool master_;
     float limiterGate_;
     VipJamLoudness loudness_;
     vj_james_t *jdsp_;

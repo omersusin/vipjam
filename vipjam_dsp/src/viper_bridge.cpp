@@ -173,6 +173,12 @@ void vj_viper_set_clarity(vj_viper *v, int mode, float gain) {
     v->engine.viperClarity.SetClarity(vj_clamp(gain, 0.0f, 100.0f) / 100.0f);
 }
 
+void vj_viper_set_reverb3(vj_viper *v, float room, float width, float damp) {
+    v->engine.reverberation.SetRoomSize(vj_clamp(room, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetWidth(vj_clamp(width, 0.0f, 100.0f) / 100.0f);
+    v->engine.reverberation.SetDamp(vj_clamp(damp, 0.0f, 100.0f) / 100.0f);
+}
+
 void vj_viper_set_fet(vj_viper *v, int param, float value) {
     if (param < 0 || param > 16) return;
     v->engine.fetCompressor.SetParameter((FETCompressor::Parameter)param,

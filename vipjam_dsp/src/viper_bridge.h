@@ -28,6 +28,7 @@ void vj_viper_set_eq_band(vj_viper *v, unsigned int band, float levelDb);
 void vj_viper_set_bass(vj_viper *v, int mode, float factor);
 void vj_viper_set_reverb(vj_viper *v, float room, float width, float damp,
                          float wet, float dry);
+void vj_viper_set_reverb3(vj_viper *v, float room, float width, float damp);
 void vj_viper_set_clarity(vj_viper *v, int mode, float gain);
 void vj_viper_set_fet(vj_viper *v, int param, float value);
 void vj_viper_set_analogx(vj_viper *v, int mode);

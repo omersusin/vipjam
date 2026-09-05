@@ -22,6 +22,40 @@ jobs:
         working-directory: .
         run: python3 tools/convert_v2_to_v3.py --self-test
 
+  native-lib:
+    name: Native libvipjam.so
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Ensure NDK with ndk-build
+        run: |
+          if [ ! -x "$ANDROID_NDK_HOME/ndk-build" ]; then
+            sdkmanager "ndk;27.3.13750724"
+            echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.3.13750724" >> "$GITHUB_ENV"
+          fi
+          "$ANDROID_NDK_HOME/ndk-build" --version
+
+      - name: Build libvipjam.so (ndk-build)
+        run: "$ANDROID_NDK_HOME/ndk-build" -C vipjam_dsp/hal -j$(nproc)
+
+      - name: Verify HAL symbol exports
+        run: |
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            f="vipjam_dsp/hal/libs/$abi/libvipjam.so"
+            nm -D "$f" | grep -q "AUDIO_EFFECT_LIBRARY_INFO_SYM" || exit 1
+            echo "$abi OK $(stat -c%s "$f") bytes"
+          done
+
+      - name: Upload native libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: libvipjam-so
+          path: vipjam_dsp/hal/libs/*/libvipjam.so
+
   apk-debug:
     name: Debug APK
     runs-on: ubuntu-latest

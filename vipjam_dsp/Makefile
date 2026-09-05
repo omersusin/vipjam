@@ -53,11 +53,15 @@ test_shm: tests/test_shm.cpp src/VipJamShm.cpp
 test_loudness: tests/test_loudness.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp $(ENGINELIB) build/host/james_bridge.o
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -o $@ tests/test_loudness.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
 
-test: test_vipjam test_shm test_loudness
+test_hal: tests/test_hal.cpp hal/VipJamEffect.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp $(ENGINELIB) build/host/james_bridge.o
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -Ithird_party -Ithird_party/viper -Ihal/include -o $@ tests/test_hal.cpp src/VipJamChain.cpp src/viper_bridge.cpp src/host_log.cpp src/VipJamShm.cpp src/VipJamLoudness.cpp build/host/james_bridge.o $(ENGINELIB) -lm -lpthread
+
+test: test_vipjam test_shm test_loudness test_hal
 	./test_vipjam
 	./test_shm
 	./test_loudness
+	./test_hal
 
 clean:
-	rm -f test_vipjam test_shm test_loudness
+	rm -f test_vipjam test_shm test_loudness test_hal
 	rm -rf build
