@@ -30,6 +30,7 @@ engines: $(OBJDIR) $(ENGINELIB)
 
 $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 	@echo "compiling engines (one-time, slow)..."
+	@pwd; $(CXX) --version | head -1; ls host/android/log/; echo "INC_VIPER=$(INC_VIPER)"
 	@mkdir -p $(OBJDIR)
 	@for f in $(JAMES_SRC); do \
 	  o="$(OBJDIR)/$$(echo $$f | tr '/.' '__').o"; \
@@ -37,7 +38,7 @@ $(ENGINELIB): $(JAMES_SRC) $(VIPER_SRC)
 	done
 	@for f in $(VIPER_SRC); do \
 	  o="$(OBJDIR)/$$(echo $$f | tr '/.' '__').o"; \
-	  if [ ! -f "$$o" ]; then echo "CXX $$f"; $(CXX) -c $(CXXFLAGS_VIPER) $(INC_VIPER) "$$f" -o "$$o" || exit 1; fi; \
+	  if [ ! -f "$$o" ]; then echo "CMD: $(CXX) -c $(CXXFLAGS_VIPER) $(INC_VIPER) $$f"; $(CXX) -c $(CXXFLAGS_VIPER) $(INC_VIPER) "$$f" -o "$$o" || exit 1; fi; \
 	done
 	ar rcs $@ $(OBJDIR)/*.o
 
