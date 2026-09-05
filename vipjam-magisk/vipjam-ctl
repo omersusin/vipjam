@@ -1,0 +1,97 @@
+#!/system/bin/sh
+MODDIR=${0%/*}
+
+print_version() {
+  if [ -f "$MODDIR/module.prop" ]; then
+    grep "^version=" "$MODDIR/module.prop"
+  else
+    echo "module.prop not found under $MODDIR"
+    return 1
+  fi
+}
+
+do_status() {
+  echo "== version =="
+  print_version
+  echo ""
+  echo "== props (persist.vipjam.*) =="
+  if command -v getprop >/dev/null 2>&1; then
+    if getprop | grep "persist.vipjam" >/dev/null 2>&1; then
+      getprop | grep "persist.vipjam"
+    else
+      echo "(no persist.vipjam.* props set)"
+    fi
+  else
+    echo "(getprop unavailable)"
+  fi
+  echo ""
+  echo "== audio_effects (vipjam blocks) =="
+  FOUND=0
+  for F in /vendor/etc/audio_effects*.xml /vendor/etc/audio_effects*.conf; do
+    if [ -f "$F" ]; then
+      if grep -i "vipjam" "$F" >/dev/null 2>&1; then
+        echo "--- $F ---"
+        grep -i -B2 -A4 "vipjam" "$F"
+        FOUND=1
+      fi
+    fi
+  done
+  if [ "$FOUND" = "0" ]; then
+    echo "(no vipjam entries in /vendor/etc/audio_effects*.xml|conf)"
+  fi
+  echo ""
+  echo "== shm_status (first 64 bytes) =="
+  BIN=/data/local/tmp/vipjam/shm_status.bin
+  if [ -f "$BIN" ]; then
+    if command -v hexdump >/dev/null 2>&1; then
+      hexdump -C -n 64 "$BIN"
+    elif command -v od >/dev/null 2>&1; then
+      od -A x -t x1z -v -N 64 "$BIN"
+    else
+      echo "(no hexdump/od available to read $BIN)"
+    fi
+  else
+    echo "(not present: $BIN)"
+  fi
+}
+
+do_sessions() {
+  if ! command -v dumpsys >/dev/null 2>&1; then
+    echo "(dumpsys unavailable)"
+    return 0
+  fi
+  OUT=$(dumpsys audio 2>/dev/null | grep -i "vipjam\|effect" || true)
+  if [ -n "$OUT" ]; then
+    echo "$OUT"
+  else
+    echo "(no vipjam/effect sessions in dumpsys audio)"
+  fi
+}
+
+do_help() {
+  echo "Usage: vipjam-ctl {status|sessions|version|help}"
+  echo "  status   - module version, persist.vipjam.* props, audio_effects vipjam blocks, shm_status head"
+  echo "  sessions - dumpsys audio filtered for vipjam/effect sessions"
+  echo "  version  - print module.prop version line"
+  echo "  help     - print this usage"
+}
+
+case "$1" in
+  status)
+    do_status
+    ;;
+  sessions)
+    do_sessions
+    ;;
+  version)
+    print_version
+    ;;
+  help|--help|-h|"")
+    do_help
+    ;;
+  *)
+    echo "Unknown command: $1"
+    do_help
+    exit 1
+    ;;
+esac
