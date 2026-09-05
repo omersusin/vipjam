@@ -14,3 +14,10 @@ test_shm
 test_loudness
 vipjam-magisk/common/files/*.so
 upstream-lunaris-dolby/
+upstream-viperfx-re2/
+upstream-aml-ryuki/
+upstream-cyfanfx/
+upstream-rootlessjdsp/
+upstream-jdspmgr/
+upstream-jdsp4linux/
+upstream-audiomods/

@@ -762,3 +762,110 @@ MediaProjection + Shizuku + `PROJECT_MEDIA` (RootlessJamesDSP pattern,
 second-confirmed by wecho/Shizuku+DUMP): capture engine, A15 screen-share
 protection workaround note, ReVanced gap note, per-device profiles, app
 blacklist. Stays parked behind system-effect v1.
+
+---
+
+## 16. Harvest log wave-2 — deep-dive agents + web research (all approved)
+
+Clones (gitignored, research-only): `upstream-viperfx-re2`, `upstream-aml-ryuki`,
+`upstream-cyfanfx`, `upstream-rootlessjdsp`, `upstream-jdspmgr`,
+`upstream-jdsp4linux` (60M), `upstream-audiomods` (322M, scripts/configs only).
+
+### 16.1 ViPERFX_RE fork delta: NONE
+`diff -rq` vs base is empty (same commit `306a606`). AIDL `libv4a_aidl.so`
+lives in releases, not source. Lesson: ship dual legacy+AIDL zips with
+in-app HAL auto-detect (adopted §15.2).
+
+### 16.2 AML Ryuki-Mod v1.3_RM — adopt full 15-fix recipe
+`/data` remount-rw; find `/system /odm /my_product /vendor`; NoMount
+metamodule support; acdb post-fs-data stash/restore (ACP Reborn compat);
+skip `*spatializer*/*haptic*`; `osp_detect music` strips competing OSP FX;
+boot-time perms reset + `chcon vendor_file`; dual `aml.sh`/`.aml.sh`;
+restart audioserver + kill MTK audio services; split-script installer;
+fixed uninstall restore; `sepolicy.rule` audioserver allows. Ship `aml.sh`
+(no `patch_cfgs`), keep id ≠ aml, test NoMount present/absent.
+
+### 16.3 cyfanFX (CC BY-SA 4.0 presets, IRS excluded)
+8× v2 SharedPrefs XML (Movie/Music × headset=bluetooth=usb/speaker) +
+`xml2prf.py`/`prf2xml.sh` converters. Bundle the 7 unique XMLs into
+`presets/` with attribution; `LoongFX-Default.irs` (149KB, Archy, no grant)
+stays OUT. Confirms Movie v3 values (VSE 0.59, reverb 45/20/59/8/33,
+bass 57Hz/150, clarity 50, EQ V-curve).
+
+### 16.4 Rootless recipe (RootlessJamesDSP, confirms §15.3)
+MediaProjection intent + `getMediaProjection` + `Callback.onStop`;
+FGS `media_projection`; capture config `MEDIA/GAME/UNKNOWN`, rate clamp
+44100–48000; perms `DUMP` + `PROJECT_MEDIA` (+ Shizuku auto-grant code);
+session sources (AudioService dump / AudioPolicy dump / open-close intents /
+MediaSession+NLService / polling), accept `USAGE_MEDIA/GAME/UNKNOWN`, drop
+sid 0/self/excluded; ReVanced gap list (Spotify/Chrome/SoundCloud);
+`PowerStateReceiver` automation; suspend-on-idle; `files/profiles/<id>/`
+per-device store; UID blacklist UI.
+
+### 16.5 JamesDSPManager app techniques — adopt
+Global-only mode (`modeEffect==0` → session 0, skip session map) as VipJam
+v1 default; zero-rate resurrect; `HashString` skip-if-equal for chunked
+strings (saves the 8888/12001/1000x round-trip when unchanged); preset
+backup/restore by copying `shared_prefs` XMLs; `IMPORTANCE_NONE` persistent
+notification pattern; full-push order (limiter→compander→bass→EQ→streq→
+reverb→widen→xfeed→tube→DDC/liveprog/convolver) mirrors our applier.
+
+### 16.6 JDSP4Linux — adopt rules + benchmark, note the rest
+`preset_rules.json` (`deviceName/deviceId/preset/routeName/routeId`,
+exact→wildcard fallback) = format for our per-device memory (§15.1-1).
+Convolver benchmark-on-boot + cache; limiter clamp `>-0.09/<0.15`;
+compander `tfresolution`; EEL `tanh/atanh` (needs upstream EEL2 sync —
+note only). D-Bus/CLI/HEADLESS are Linux-only — doc reference.
+
+### 16.7 AudioMods stacking — adopt rules + helpers
+Install order Dirac→DDP→JamesDSP; additive UUIDs
+(`dirac e069d9e0…`, `dsplus 9d4921da…`, `jdsp f27317f4…`); keep QCOM
+proxies; legacy `.conf` keeps dsplus+jdsp only; `cp_ch/mk_ch` helpers;
+`libstdc++` bidirectional fix; prop-append pattern; LesserAudioSwitch BT
+workaround; verify via `dumpsys media.audio_flinger | grep name`.
+V1 rule: VipJam installs additively, never removes other FX.
+
+### 16.8 Lunaris app UI — adopt pieces for Effects-tab upgrade
+Band-mode selector (10/15/20) with incompatible-mode edit guard; draggable
+frequency-response curve (cubic, ±15dB, tooltips); vertical per-band
+sliders committing on release; preset dropdown + profile carousel;
+per-app-profile screen (search + dropdown + usage-stats gate UI); nav shell
+(pager + floating toolbar); `squishable` press + haptics; Expressive
+shapes/motion; triple-state (Loading/Success/Error) screens.
+
+### 16.9 Wavelet 2026 (v26.05) — adopt import stack + calibration
+Strict 127-freq `GraphicEQ:` parser (reject anything else); parametric
+preamp enforcement (`-maxGain`); 3-stage anti-clip (normalize import,
+auto-attenuator, limiter+auto-post-gain); ISO226 volume-threshold
+calibration UX (matches our `setVolume` + thresholdDb design); session
+fallback chain normal→legacy→DUMP+NotificationListener; BLE hearing-aid
+as BT device; per-device profiles; 9-band graphic + bass tuner reference.
+
+### 16.10 Hi-Res — adopt as module addon
+Correct repos: `reiryuki/Hi-Res-Audio-Enabler-Magisk-Module` (Qcom, v3.12)
++ `adivenxnataly/Hi-ResAudio` (MTK). Recipe: `deep_buffer_24`
+(policy conf+XML), `bit_width 24` platform info, `hph-highquality-mode`
+mixer path, `resetprop` bit-width props + audioserver restart, optionals
+via `/data/media/*/optionals.prop`. Verify: `dumpsys media.audio_flinger`
+(DIRECT 192kHz 24-bit) + `alsa hw_params`. Note: exclusive/BIT_PERFECT
+USB bypasses all DSP — speaker/wired paths only.
+
+### 16.11 AIDL verdict 2026 — start track now (approved)
+Mandatory on 15+ launching devices; HIDL unreliable there. Mechanics:
+impersonate `DynamicsProcessing` type (`7261676f-…`) + own UUID (Pixel
+factory hardcodes its list — XML ignored on Pixels, needs PIXAML-class
+shim, out of v1 scope); SHM control channel (app mmap, driver polls);
+Soong-only build (NDK C++ ABI unstable — needs AOSP clang per version);
+config under `kEffectLibPath` + VINTF `IFactory`; sepolicy
+`hal_audio_t … map/execute + data rw/map` via post-fs-data live-inject.
+Track: `hal-aidl/` Soong module + app AIDL auto-detect alongside HIDL.
+
+### 16.12 Module tech 2026 — adopt now
+Full-replacement `audio_effects.xml` (+odm/my_product/system copies,
+exclude haptics) instead of boot-time sed; `webroot/` + `www/` dual for
+KSU/APatch/MMRL; `ksu.exec` feature-detect (`KernelSU||ksu||mmc`),
+persist in `/data/adb/modules/<id>/`; static `sepolicy.rule`
+(bundle Magisk 30.7 `libmagiskpolicy.so` pattern); MMT-EX retired →
+official installer template; magic-mount preferred, `service.sh`
+shadow-copy + audioserver restart fallback; skip work when AIDL detected
+on 15+ launchers (log it).
