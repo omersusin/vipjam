@@ -284,8 +284,10 @@ def pack_link(p: dict[str, Any]) -> str:
 def unpack_link(link: str) -> dict[str, Any]:
     if not link.startswith(LINK_SCHEME):
         raise ValueError("not a vipjam preset link")
+    payload = link[len(LINK_SCHEME):]
+    payload += "=" * (-len(payload) % 4)
     try:
-        raw = base64.urlsafe_b64decode(link[len(LINK_SCHEME):] + "==")
+        raw = base64.urlsafe_b64decode(payload)
     except Exception:
         raise ValueError("link payload is not valid base64")
     try:
@@ -341,6 +343,8 @@ def self_test() -> int:
     back = unpack_link(link)
     check(back == merged, "link round-trips preset exactly")
     check(validate_v3(back) == [], "unpacked link validates")
+    bare = link.rstrip("=")
+    check(unpack_link(bare) == merged, "unpadded app-style link unpacks")
     try:
         unpack_link("https://example.com/x")
         check(False, "bad scheme rejected")

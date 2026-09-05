@@ -44,4 +44,7 @@ dependencies {
     implementation(libs.lifecycle.runtime)
     implementation(libs.coroutines.android)
     implementation(libs.datastore.preferences)
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
+    testImplementation(libs.coroutines.test)
 }
