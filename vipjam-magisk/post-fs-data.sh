@@ -22,3 +22,8 @@ done
 if [ -d "/odm/etc/" ]; then
   mount -o bind /data/adb/modules/vipjam/odm/etc/audio_effects.xml /odm/etc/audio_effects.xml
 fi
+
+if [ -f "$MODDIR/hires_enable" ]; then
+  resetprop vendor.audio.capture.pcm.32bit.enable true
+  resetprop persist.vendor.audio_hal.dsp_bit_width_enforce_mode 24
+fi

@@ -34,3 +34,30 @@ for OFILE in ${CFGS}; do
         ;;
   esac
 done
+
+hires_unlock() {
+  POLICIES="$(find /odm /vendor /system -type f -name "audio_policy_configuration.xml" 2>/dev/null)"
+  for OFILE in ${POLICIES}; do
+    [ -f "$OFILE" ] || continue
+    FILE="$MODPATH$(echo $OFILE | sed "s|^/vendor|/system/vendor|g")"
+    cp_ch -n $OFILE $FILE
+    if grep -q "deep_buffer_24\|PCM_24_BIT_PACKED\|PCM_8_24_BIT" $FILE; then
+      continue
+    fi
+    sed -i '/AUDIO_OUTPUT_FLAG_DEEP_BUFFER/a\        <profile name="deep_buffer_24" role="source" format="AUDIO_FORMAT_PCM_24_BIT_PACKED|AUDIO_FORMAT_PCM_8_24_BIT" samplingRates="44100|48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"\/>' $FILE
+  done
+  MIXERS="$(find /odm /vendor /system -type f -name "mixer_paths*.xml" 2>/dev/null)"
+  for OFILE in ${MIXERS}; do
+    [ -f "$OFILE" ] || continue
+    FILE="$MODPATH$(echo $OFILE | sed "s|^/vendor|/system/vendor|g")"
+    cp_ch -n $OFILE $FILE
+    if grep -q 'hph-highquality-mode' $FILE; then
+      continue
+    fi
+    sed -i '/<mixer>/ a\    <path name="hph-highquality-mode" \/>' $FILE
+  done
+}
+
+if [ -f "$MODPATH/hires_enable" ]; then
+  hires_unlock
+fi

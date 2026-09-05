@@ -7,26 +7,45 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.vipjam.data.DeviceRule
+import com.vipjam.data.DeviceRules
+import com.vipjam.data.PresetStore
+import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
+import com.vipjam.ui.prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class VipJamService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dispatcher = VipJamDispatcher(0)
+    private var audioManager: AudioManager? = null
+    private var deviceCallback: AudioDeviceCallback? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                deviceCallback?.let { audioManager?.unregisterAudioDeviceCallback(it) }
+            } catch (_: Exception) {
+            }
+        }
+        deviceCallback = null
+        audioManager = null
         dispatcher.release()
     }
 
@@ -43,6 +62,71 @@ class VipJamService : Service() {
             )
         } else {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, 0)
+        }
+        registerDeviceCallback()
+    }
+
+    private fun registerDeviceCallback() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val manager = getSystemService(AudioManager::class.java) ?: return
+        audioManager = manager
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
+                onOutputDevicesAdded(addedDevices.toList())
+            }
+        }
+        deviceCallback = callback
+        manager.registerAudioDeviceCallback(callback, null)
+    }
+
+    private fun onOutputDevicesAdded(devices: List<AudioDeviceInfo>) {
+        scope.launch {
+            val app = applicationContext
+            val store = PresetStore(app.prefs)
+            val map = try {
+                store.devicePresetMap.first()
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (map.isEmpty()) return@launch
+            val rules = map.map { (id, preset) -> DeviceRule(id, "", preset) }
+            for (device in devices) {
+                val id = deviceIdOf(device) ?: continue
+                val presetName = DeviceRules.match(rules, id, routeOf(device)) ?: continue
+                val json = try {
+                    store.entries.first().find { it.name == presetName }?.settingsJson
+                } catch (_: Exception) {
+                    null
+                }
+                if (json.isNullOrBlank()) continue
+                val master = try {
+                    app.prefs.data.first()[VipJamPrefs.MASTER_ENABLE] ?: false
+                } catch (_: Exception) {
+                    false
+                }
+                applyPreset(json, master)
+                return@launch
+            }
+        }
+    }
+
+    private fun deviceIdOf(device: AudioDeviceInfo): String? {
+        return when (device.type) {
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> device.address?.takeIf { it.isNotBlank() }
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_DEVICE -> DeviceRules.WIRED_DEVICE_ID
+            else -> null
+        }
+    }
+
+    private fun routeOf(device: AudioDeviceInfo): String {
+        return when (device.type) {
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> VipJamPrefs.Profiles.BLUETOOTH
+            else -> VipJamPrefs.Profiles.HEADSET
         }
     }
 
