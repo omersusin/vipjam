@@ -43,6 +43,9 @@ set_permissions() {
 SKIPUNZIP=1
 unzip -qjo "$ZIPFILE" 'common/functions.sh' -d $TMPDIR >&2
 . $TMPDIR/functions.sh
+# KSU-Next/Magisk only keep whitelisted paths in MODPATH; ensure our
+# payload (install script + driver .so files + helpers) is really there.
+unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' -d $MODPATH >&2
 # VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
 . $MODPATH/common/install.sh
 LIBPATCH=`cat $MODPATH/libpatch.txt`
@@ -66,5 +69,6 @@ done
 
 if [ -d "/odm/etc/" ]; then
   echo "Binding audio_effects.xml to odm partition..."
-  mount -o bind /data/adb/modules/vipjam/odm/etc/audio_effects.xml /odm/etc/audio_effects.xml
+  mount -o bind /data/adb/modules/vipjam/odm/etc/audio_effects.xml /odm/etc/audio_effects.xml 2>/dev/null \
+    || echo "odm bind skipped (non-fatal)"
 fi
