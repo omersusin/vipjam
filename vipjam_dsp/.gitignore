@@ -1,0 +1,6 @@
+build/
+test_vipjam
+*.o
+*.a
+out*.txt
+p9.log

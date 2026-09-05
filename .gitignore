@@ -1,0 +1,12 @@
+build/
+test_vipjam
+*.o
+*.a
+*.log
+out*.txt
+p*.log
+upstream-*/
+app-skeleton/app/build/
+app-skeleton/app/.gradle/
+.gradle/
+local.properties

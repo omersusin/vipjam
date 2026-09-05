@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">VipJam</string>
+    <string name="qs_tile_master_label">Ana şalter</string>
+    <string name="master_enable">Ana sınırlayıcı</string>
+    <string name="profile_headset">Kulaklık</string>
+    <string name="profile_speaker">Hoparlör</string>
+    <string name="profile_bluetooth">Bluetooth</string>
+</resources>

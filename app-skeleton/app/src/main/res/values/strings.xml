@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">VipJam</string>
+    <string name="qs_tile_master_label">Master</string>
+    <string name="master_enable">Master limiter</string>
+    <string name="profile_headset">Headphones</string>
+    <string name="profile_speaker">Speaker</string>
+    <string name="profile_bluetooth">Bluetooth</string>
+</resources>
