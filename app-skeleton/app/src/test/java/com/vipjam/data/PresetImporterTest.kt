@@ -69,6 +69,29 @@ class PresetImporterTest {
     }
 
     @Test
+    fun `group toggles round trip`() {
+        val json = resource("Movie.v3.json")
+        val groups = PresetImporter.groupEnables(json)
+        assertTrue(groups.isNotEmpty())
+        val bass = groups.first { it.first == "bass" }
+        val flipped = PresetImporter.withGroupEnabled(json, "bass", !bass.second)
+        val back = PresetImporter.groupEnables(flipped)
+        assertEquals(!bass.second, back.first { it.first == "bass" }.second)
+        assertTrue(PresetImporter.parseV3(flipped).isSuccess)
+    }
+
+    @Test
+    fun `liveprog validation catches bad scripts`() {
+        assertTrue(LiveProgScripts.validate("@init\nx=1;\n@sample\ny=x;").isEmpty())
+        val errors = LiveProgScripts.validate("y=x;")
+        assertTrue(errors.any { it.contains("@init") })
+        assertTrue(errors.any { it.contains("@sample") })
+        assertTrue(LiveProgScripts.validate("@init\n@sample\nfoo(bar;").any {
+            it.contains("unbalanced")
+        })
+    }
+
+    @Test
     fun `store saves lists and deletes`() = runTest {
         val file = tmp.newFile("prefs.preferences_pb")
         val store = PresetStore(PreferenceDataStoreFactory.create { file })

@@ -1,0 +1,51 @@
+{
+  "pin": "7ae0f56d53074872b028649617a22bbb4232feb7",
+  "base": "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/7ae0f56d53074872b028649617a22bbb4232feb7/results/oratory1990/over-ear/Sennheiser%20HD%20600/",
+  "kernels": [
+    {
+      "name": "hd600",
+      "type": "DDC",
+      "files": [
+        "hd600/Sennheiser HD 600 FixedBandEQ.txt",
+        "hd600/Sennheiser HD 600 ParametricEQ.txt",
+        "hd600/Sennheiser HD 600 minimum phase 44100Hz.wav",
+        "hd600/Sennheiser HD 600 minimum phase 48000Hz.wav",
+        "hd600/hd600-fixedband.vdc",
+        "hd600/hd600-parametric.vdc"
+      ],
+      "sha256": {
+        "hd600/Sennheiser HD 600 FixedBandEQ.txt": "1dbf0f282f06802b8ca3257b4b34bf4462d32cc0b3ec3f0cb0f3c272bae9f8c5",
+        "hd600/Sennheiser HD 600 ParametricEQ.txt": "a1929b782f46c9f4e481b920e495fd574349994f598660b086388148a3813b00",
+        "hd600/Sennheiser HD 600 minimum phase 44100Hz.wav": "e2df28c20a27c9690114c39580d81e4772e92f89904652a98af1e59ae7e9f8f9",
+        "hd600/Sennheiser HD 600 minimum phase 48000Hz.wav": "cd172159e3526c7add1a1db4d6d66884233831969c0b4db85e46506bd45c9f75",
+        "hd600/hd600-fixedband.vdc": "131d42b90a9aecb54d9d12bb3b87c7309a7a99f13d0dc950159357a408152510",
+        "hd600/hd600-parametric.vdc": "e939a9636cd794410be5d043a7302da3ede22755527b7620143e26115b232709"
+      },
+      "license": "MIT (AutoEq) + oratory1990 measurement",
+      "source": "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/7ae0f56d53074872b028649617a22bbb4232feb7/results/oratory1990/over-ear/Sennheiser%20HD%20600/"
+    },
+    {
+      "name": "synth-room-cc0",
+      "type": "IR",
+      "files": [
+        "synth-room-cc0.irs"
+      ],
+      "sha256": {
+        "synth-room-cc0.irs": "0a7979e2e8cc1f04e2422d2fe95c350774dff024eb5c5e21bea101a09c17d2c5"
+      },
+      "license": "CC0 (synthesized)",
+      "source": "synthesized"
+    }
+  ],
+  "synth_spec": {
+    "generator": "seeded exp-decay stereo noise",
+    "seed": 7,
+    "frames": 256,
+    "channels": 2,
+    "layout": "interleaved stereo LRLR, raw float32 LE, no WAV header",
+    "decay": "exp(-4.0*i/N)",
+    "distribution": "uniform(-1,1) via random.Random(seed)",
+    "normalize_peak": 0.5,
+    "note": "Raw float32 LE samples, NOT a WAV file: no RIFF header by design."
+  }
+}

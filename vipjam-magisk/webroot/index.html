@@ -9,22 +9,29 @@
 <style>
   body { padding: 16px; background-color: var(--background); color: var(--onBackground); font-family: sans-serif; }
   .card { padding: 16px; background-color: var(--surfaceContainer); border-radius: 20px; margin-bottom: 12px; }
-  .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+  .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; gap: 12px; }
   button { padding: 10px 18px; border-radius: 12px; border: none; background: var(--primary); color: var(--onPrimary); }
-  select, input[type=range] { width: 100%; }
+  button:disabled { opacity: 0.4; }
+  button.ghost { background: transparent; color: var(--primary); border: 1px solid var(--primary); }
+  select, input[type=text] { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--outline); background: var(--surface); color: var(--onSurface); box-sizing: border-box; }
+  input[type=range] { width: 100%; }
   .status { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+  .note { font-size: 12px; opacity: 0.7; }
+  .preset { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
 </style>
 </head>
 <body>
+  <div class="card" id="nobeCtl" hidden>
+    <span class="note">vipjam-ctl not found — controls disabled. Install the VipJam driver module first.</span>
+  </div>
   <div class="card">
     <h2>VipJam Fused DSP</h2>
     <div class="row"><span>Master</span><button id="masterBtn">Toggle</button></div>
     <div class="row"><span>Profile</span></div>
     <select id="profile">
-      <option value="balanced">Balanced</option>
-      <option value="music">Music</option>
-      <option value="movie">Movie</option>
-      <option value="call">Call</option>
+      <option value="headset">Headset</option>
+      <option value="speaker">Speaker</option>
+      <option value="bluetooth">Bluetooth</option>
     </select>
   </div>
   <div class="card">
@@ -32,20 +39,81 @@
     <input type="range" id="bass" min="0" max="100" value="50" />
     <div class="row"><span>Clarity</span><span id="clarVal">50</span></div>
     <input type="range" id="clarity" min="0" max="100" value="50" />
+    <div class="note">Slider changes are debounced 120ms before reaching the driver.</div>
+  </div>
+  <div class="card">
+    <h3>Presets</h3>
+    <div class="row"><input type="text" id="presetLink" placeholder="vipjam://preset link" /></div>
+    <div class="row"><button id="presetBtn" class="ghost">Save link as preset</button></div>
+    <div id="presetList"></div>
   </div>
   <div class="card">
     <h3>Driver status</h3>
     <div class="status" id="status">loading…</div>
-    <button id="refreshBtn">Refresh</button>
+    <button id="refreshBtn" class="ghost">Refresh</button>
   </div>
 <script>
+  const PRESET_DIR = "/data/local/tmp/vipjam/presets";
+  let hasCtl = true;
+  let timers = {};
+
   async function sh(cmd) {
     const r = await ksu.exec(cmd);
     return (r.stdout || "") + (r.stderr || "");
   }
+  function debounced(key, fn) {
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(fn, 120);
+  }
+  function setEnabled(on) {
+    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn"]) {
+      document.getElementById(id).disabled = !on;
+    }
+    document.getElementById("nobeCtl").hidden = on;
+  }
+  async function probe() {
+    const out = await sh("command -v vipjam-ctl");
+    hasCtl = out.trim() !== "";
+    setEnabled(hasCtl);
+  }
   async function refresh() {
+    if (!hasCtl) {
+      document.getElementById("status").textContent = "(vipjam-ctl not found)";
+      return;
+    }
     const out = await sh("vipjam-ctl status-json 2>&1; getprop persist.vipjam.enabled persist.vipjam.profile");
-    document.getElementById("status").textContent = out || "(vipjam-ctl not found)";
+    document.getElementById("status").textContent = out || "(empty)";
+    listPresets();
+  }
+  async function listPresets() {
+    const out = await sh("ls " + PRESET_DIR + " 2>/dev/null");
+    const box = document.getElementById("presetList");
+    box.innerHTML = "";
+    for (const name of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+      const div = document.createElement("div");
+      div.className = "preset";
+      const label = document.createElement("span");
+      label.textContent = name;
+      const apply = document.createElement("button");
+      apply.className = "ghost";
+      apply.textContent = "Apply";
+      apply.onclick = async () => {
+        await sh("vipjam-ctl apply-preset " + PRESET_DIR + "/" + name);
+        refresh();
+      };
+      div.appendChild(label);
+      div.appendChild(apply);
+      box.appendChild(div);
+    }
+  }
+  function restoreSliders() {
+    for (const [id, val] of [["bass", "bassVal"], ["clarity", "clarVal"]]) {
+      const saved = localStorage.getItem("vipjam." + id);
+      if (saved !== null) {
+        document.getElementById(id).value = saved;
+        document.getElementById(val).textContent = saved;
+      }
+    }
   }
   document.getElementById("refreshBtn").onclick = refresh;
   document.getElementById("masterBtn").onclick = async () => {
@@ -56,15 +124,23 @@
     await sh("vipjam-ctl set-profile " + e.target.value);
     refresh();
   };
-  document.getElementById("bass").oninput = async (e) => {
-    document.getElementById("bassVal").textContent = e.target.value;
-    await sh("vipjam-ctl set-param bass " + e.target.value);
+  for (const [id, param, val] of [["bass", "bass", "bassVal"], ["clarity", "clarity", "clarVal"]]) {
+    document.getElementById(id).oninput = (e) => {
+      document.getElementById(val).textContent = e.target.value;
+      localStorage.setItem("vipjam." + id, e.target.value);
+      debounced(param, () => sh("vipjam-ctl set-param " + param + " " + e.target.value));
+    };
+  }
+  document.getElementById("presetBtn").onclick = async () => {
+    const link = document.getElementById("presetLink").value.trim();
+    if (!link.startsWith("vipjam://preset?c=")) return;
+    const name = "link-" + Date.now() + ".v3.json";
+    await sh("mkdir -p " + PRESET_DIR + " && echo '" + link.replace(/'/g, "") + "' > " + PRESET_DIR + "/" + name);
+    document.getElementById("presetLink").value = "";
+    listPresets();
   };
-  document.getElementById("clarity").oninput = async (e) => {
-    document.getElementById("clarVal").textContent = e.target.value;
-    await sh("vipjam-ctl set-param clarity " + e.target.value);
-  };
-  refresh();
+  restoreSliders();
+  probe().then(refresh);
 </script>
 </body>
 </html>

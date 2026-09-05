@@ -91,6 +91,23 @@ object PresetImporter {
         )
     }
 
+    fun groupEnables(settingsJson: String): List<Pair<String, Boolean>> {
+        val obj = JSONObject(settingsJson)
+        return viperGroups.sorted().mapNotNull { group ->
+            obj.optJSONObject(group)?.let {
+                if (it.has("enable")) group to it.optBoolean("enable", false)
+                else null
+            }
+        }
+    }
+
+    fun withGroupEnabled(settingsJson: String, group: String, on: Boolean): String {
+        require(group in viperGroups) { "unknown group: $group" }
+        val obj = JSONObject(settingsJson)
+        obj.getJSONObject(group).put("enable", on)
+        return obj.toString()
+    }
+
     fun packLink(settingsJson: String): String {
         val raw = settingsJson.toByteArray(Charsets.UTF_8)
         val b64 = Base64.getUrlEncoder().withoutPadding().encodeToString(raw)
