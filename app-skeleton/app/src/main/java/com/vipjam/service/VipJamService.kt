@@ -19,6 +19,8 @@ import com.vipjam.data.DeviceRule
 import com.vipjam.data.DeviceRules
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
+import com.vipjam.appprofile.AppProfileMonitor
+import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.ui.prefs
@@ -34,10 +36,16 @@ class VipJamService : Service() {
     private val dispatcher = VipJamDispatcher(0)
     private var audioManager: AudioManager? = null
     private var deviceCallback: AudioDeviceCallback? = null
+    private var appProfileMonitor: AppProfileMonitor? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        try {
+            appProfileMonitor?.stop()
+        } catch (_: Exception) {
+        }
+        appProfileMonitor = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             try {
                 deviceCallback?.let { audioManager?.unregisterAudioDeviceCallback(it) }
@@ -165,6 +173,27 @@ class VipJamService : Service() {
             if (!dispatcher.create()) return@launch
             dispatcher.setParam(VipJamDispatcher.P_MASTER, if (on) 1 else 0)
             dispatcher.enabled = on
+            try {
+                if (on) {
+                    val app = applicationContext
+                    val enabled = try {
+                        AppProfileStore(app.prefs).monitorEnabled.first()
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (enabled) {
+                        val monitor = appProfileMonitor
+                            ?: AppProfileMonitor(AppProfileStore(app.prefs), PresetStore(app.prefs), app.prefs)
+                                .also { appProfileMonitor = it }
+                        monitor.start(app)
+                    } else {
+                        appProfileMonitor?.stop()
+                    }
+                } else {
+                    appProfileMonitor?.stop()
+                }
+            } catch (_: Exception) {
+            }
         }
     }
 
