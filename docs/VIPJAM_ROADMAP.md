@@ -627,12 +627,24 @@ inaudible; fixed, range to 24dB) applied from day one.
   (migration done: `tools/convert_v2_to_v3.py` + fixtures + CI smoke test;
   SHM done: `VipJamShm.{h,cpp}` v5 layout, ViPER-compatible params slots +
   james ext block + bulk cmds, 41 host tests; HIDL `.hal` deferred — needs
-  Soong/AOSP build, host-unverifiable).
+  Soong/AOSP build, host-unverifiable; replaced at runtime by ndk-build
+  `hal/VipJamEffect.cpp`, host-tested INIT/CONFIG/PARAM/PROCESS).
+  REMAINING: module packaging zip job; EAPO/REW/autoeq import.
   Docs convention from day one: `docs/<area>/HOW_TO.md`
   (Setup → Code → Integration → Test → Verify) + `.agent/skills`
   (james-bond pattern); every implementation PR updates its HOW_TO.
 - **Faz 3** — AIDL driver + Pixel path + WebUI + kernel library + LiveProg IDE
   + AutoEq DB + link sharing + loudness + Movie/Game + Crowdin + F-Droid.
+  (done: WebUI polish, kernel fetch `tools/fetch_kernels.py` + manifest,
+  LiveProg mini-IDE tab, link codec, loudness compensator, Movie/Game
+  presets, app preset import/store, tabbed app shell, JNI test-tone player,
+  app→driver dispatch + status probe.
+  REMAINING: AIDL driver + Pixel path; kernel in-app pickers + staging +
+  HAL array protocol (DDC/IR push); LiveProg content → driver; AutoEq
+  build-time preset gen; Crowdin; F-Droid; per-app/per-device maps; update
+  checker; `vipjam.log`; app root ops — RootShell, kernel staging, SHM
+  writer, AudioSessionMonitor, output routing; EQ curve UI; reorderable
+  chain UI; Device/Settings sheets; dark toggle; ZH/RU; tablet layout).
 - **Faz 4** — HiRes/USB hardening, KFR fast-path, oversampling, DVC,
   per-channel EQ, hearing test, RNNoise mic gate, rootless Shizuku,
   exciter-4band, global Poweramp-style mode (experimental).

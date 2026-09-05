@@ -12,3 +12,4 @@ app-skeleton/app/.gradle/
 local.properties
 test_shm
 test_loudness
+vipjam-magisk/common/files/*.so
