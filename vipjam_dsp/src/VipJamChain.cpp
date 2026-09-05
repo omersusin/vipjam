@@ -63,6 +63,15 @@ int VipJamChain::loadIR(const float *frames, unsigned int channels,
                             channels, len);
 }
 
+int VipJamChain::loadLiveProg(const char *eelText) {
+    return vj_james_load_liveprog(static_cast<vj_james_t *>(jdsp_), eelText);
+}
+
+int VipJamChain::loadLiveProgMulti(const char **scripts, int n) {
+    return vj_james_load_liveprog_multi(static_cast<vj_james_t *>(jdsp_),
+                                        scripts, n);
+}
+
 void VipJamChain::viperSetDDC(const float *c44, unsigned int n44,
                               const float *c48, unsigned int n48) {
     vj_viper_set_ddc(static_cast<vj_viper *>(viper_), c44, n44, c48, n48);

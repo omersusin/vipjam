@@ -327,8 +327,36 @@ static void test_ir_viper(void) {
     CHECK(allFiniteClamped(buf), "viper convolver finite + clamped");
 }
 
-static void test_golden_sine(void) {
+static void test_liveprog_single(void) {
+    std::string eel = readFile("tests/vectors/hadamVerb.eel");
+    CHECK(!eel.empty(), "eel vector file loads");
     VipJamChain chain;
+    chain.setSamplingRate(44100);
+    CHECK(chain.loadLiveProg(eel.c_str()) == 1, "hadamVerb compiles");
+    CHECK(chain.loadLiveProg("@init\nclamp(") < 0, "broken eel rejected");
+    chain.setStageEnabled(VJ_STAGE_JAMES_LIVEPROG, true);
+    std::vector<float> buf(1024 * 2, 0.3f);
+    chain.process(buf);
+    CHECK(allFiniteClamped(buf), "liveprog runs finite + clamped");
+}
+
+static void test_liveprog_multi(void) {
+    std::string verb = readFile("tests/vectors/hadamVerb.eel");
+    std::string hp = readFile("tests/vectors/hpfloat.eel");
+    VipJamChain chain;
+    chain.setSamplingRate(44100);
+    const char *scripts[2] = {verb.c_str(), hp.c_str()};
+    int rc = chain.loadLiveProgMulti(scripts, 2);
+    CHECK(rc == 1, "merged 2-script eel compiles");
+    CHECK(chain.loadLiveProgMulti(scripts, 0) < 0, "empty multi rejected");
+    CHECK(chain.loadLiveProgMulti(scripts, 5) < 0, "over-limit multi rejected");
+    chain.setStageEnabled(VJ_STAGE_JAMES_LIVEPROG, true);
+    std::vector<float> buf(1024 * 2, 0.3f);
+    chain.process(buf);
+    CHECK(allFiniteClamped(buf), "chained liveprog finite + clamped");
+}
+
+static void test_golden_sine(void) {    VipJamChain chain;
     chain.setSamplingRate(44100);
     chain.setStageEnabled(VJ_STAGE_JAMES_COMP, true);
     chain.setStageEnabled(VJ_STAGE_VIPER_BASS, true);
@@ -365,6 +393,8 @@ int main(void) {
     test_ddc_viper();
     test_ir_james();
     test_ir_viper();
+    test_liveprog_single();
+    test_liveprog_multi();
     test_golden_sine();
     if (failures == 0) printf("ALL GREEN\n");
     else printf("%d FAILURES\n", failures);

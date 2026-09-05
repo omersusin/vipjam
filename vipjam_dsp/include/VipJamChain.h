@@ -18,6 +18,8 @@ public:
     bool isStageEnabled(vj_stage_t stage) const;
     int loadDDC(const char *vdcText);
     int loadIR(const float *frames, unsigned int channels, unsigned int len);
+    int loadLiveProg(const char *eelText);
+    int loadLiveProgMulti(const char **scripts, int n);
     void viperSetDDC(const float *c44, unsigned int n44, const float *c48,
                      unsigned int n48);
     void viperSetKernelMono(const float *frames, unsigned int len);

@@ -17,6 +17,8 @@ void vj_james_process(vj_james_t *j, float *interleaved, uint32_t frames);
 int vj_james_load_ddc(vj_james_t *j, const char *vdcText);
 int vj_james_load_ir(vj_james_t *j, const float *frames, unsigned int channels,
                      unsigned int len);
+int vj_james_load_liveprog(vj_james_t *j, const char *eelText);
+int vj_james_load_liveprog_multi(vj_james_t *j, const char **scripts, int n);
 
 #ifdef __cplusplus
 }
