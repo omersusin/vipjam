@@ -25,7 +25,8 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS := -O3 -ffunction-sections -fdata-sections -fvisibility=hidden \
     -DVERSION_NAME='"0.1.0-fused"' -DVERSION_CODE=1
-LOCAL_CONLYFLAGS := -include unistd.h -Wno-implicit-int -Wno-unused
+LOCAL_CONLYFLAGS := -include unistd.h -Wno-implicit-int -Wno-unused \
+    -Wno-incompatible-function-pointer-types
 LOCAL_CPPFLAGS := -std=c++17 -fno-exceptions -fno-rtti -fvisibility-inlines-hidden \
     -Wall -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function
 LOCAL_LDLIBS := -llog -lm
