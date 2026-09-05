@@ -63,7 +63,7 @@ fun VipJamApp() {
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            ScrollableTabRow(selectedTabIndex = page.ordinal, edgePadding = dp(0)) {
+            ScrollableTabRow(selectedTabIndex = page.ordinal, edgePadding = 0.dp) {
                 TabPage.entries.forEach { tab ->
                     Tab(
                         selected = page == tab,
