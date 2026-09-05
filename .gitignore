@@ -10,3 +10,4 @@ app-skeleton/app/build/
 app-skeleton/app/.gradle/
 .gradle/
 local.properties
+test_shm
