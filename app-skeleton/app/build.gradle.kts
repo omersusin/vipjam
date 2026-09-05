@@ -12,11 +12,26 @@ android {
         minSdk = 28
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = System.getenv("VIPJAM_VERSION_NAME") ?: "0.1.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("VIPJAM_KEYSTORE_PATH")
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("VIPJAM_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("VIPJAM_KEY_ALIAS")
+                keyPassword = System.getenv("VIPJAM_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (System.getenv("VIPJAM_KEYSTORE_PATH") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

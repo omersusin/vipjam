@@ -369,7 +369,7 @@ static int32_t VipJamLibraryGetDescriptor(const effect_uuid_t *uuid,
 }
 
 extern "C" {
-__attribute__((visibility("default"))) audio_effect_library_t
+__attribute__((visibility("default"), used)) audio_effect_library_t
     AUDIO_EFFECT_LIBRARY_INFO_SYM = {
         AUDIO_EFFECT_LIBRARY_TAG,
         EFFECT_LIBRARY_API_VERSION,
