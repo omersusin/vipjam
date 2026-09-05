@@ -8,7 +8,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 object PresetSeeder {
-    private val bundled = listOf("Movie.v3.json", "Game.v3.json")
+    private val bundled = listOf(
+        "Movie.v3.json",
+        "Game.v3.json",
+        "LoongFX-Movie-Headset.v3.json",
+        "LoongFX-Movie-Speaker.v3.json",
+        "LoongFX-Music-Headset.v3.json",
+        "LoongFX-Music-Speaker.v3.json",
+    )
 
     suspend fun seedOnce(
         context: Context,

@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 3,
+  "origin": "viper",
+  "name": "LoongFX-Movie-Headset",
+  "masterEnable": true,
+  "masterLimiter": {
+    "threshold": 100,
+    "outputVolume": 100,
+    "channelPan": 0
+  },
+  "playbackGainControl": {
+    "enable": true,
+    "strength": 300,
+    "maxGain": 300,
+    "outputThreshold": 70
+  },
+  "fetCompressor": {
+    "enable": false
+  },
+  "ddc": {
+    "enable": false,
+    "device": ""
+  },
+  "spectrumExtension": {
+    "enable": true,
+    "strength": 5740,
+    "exciter": 0
+  },
+  "equalizer": {
+    "enable": true,
+    "bandCount": 10,
+    "bands": [
+      -1.0,
+      -1.0,
+      1.0,
+      2.0,
+      2.5,
+      3.5,
+      5.5,
+      4.5,
+      2.0,
+      -1.0
+    ],
+    "presetId": null
+  },
+  "convolver": {
+    "enable": false,
+    "kernelFile": "LoongFX-Default.irs",
+    "crossChannel": 22
+  },
+  "fieldSurround": {
+    "enable": true,
+    "widening": 18,
+    "midImage": 20,
+    "depth": 0
+  },
+  "diffSurround": {
+    "enable": false,
+    "delay": 20,
+    "reverse": false,
+    "wetDryMix": 100,
+    "lpCutoff": 0
+  },
+  "headphoneSurround": {
+    "enable": true,
+    "quality": 0
+  },
+  "reverb": {
+    "enable": true,
+    "roomSize": 4,
+    "width": 2,
+    "damp": 3,
+    "wet": 8,
+    "dry": 59
+  },
+  "dynamicSystem": {
+    "enable": true,
+    "presetId": null,
+    "device": 0,
+    "strength": 11,
+    "xLow": 300,
+    "xHigh": 5600,
+    "yLow": 60,
+    "yHigh": 105,
+    "sideGainLow": 10,
+    "sideGainHigh": 50
+  },
+  "bass": {
+    "enable": true,
+    "mode": 0,
+    "frequency": 57,
+    "gain": 150,
+    "antiPop": true
+  },
+  "clarity": {
+    "enable": true,
+    "mode": 0,
+    "gain": 50
+  },
+  "cure": {
+    "enable": false,
+    "crossfeedPreset": 0
+  },
+  "tubeSimulator": {
+    "enable": false
+  },
+  "analogX": {
+    "enable": false,
+    "mode": 0
+  },
+  "speakerCorrection": {
+    "enable": false
+  }
+}
