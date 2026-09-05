@@ -15,17 +15,17 @@ import org.junit.rules.TemporaryFolder
 private class RecordingSink : ParamSink {
     val calls = mutableListOf<Triple<Int, Int, Int?>>()
 
-    override fun set(id: Int, v0: Int): Boolean {
+    override fun setParam(id: Int, v0: Int): Boolean {
         calls += Triple(id, v0, null)
         return true
     }
 
-    override fun set(id: Int, v0: Int, v1: Int): Boolean {
+    override fun setParam(id: Int, v0: Int, v1: Int): Boolean {
         calls += Triple(id, v0, v1)
         return true
     }
 
-    override fun set(id: Int, v0: Int, v1: Int, v2: Int): Boolean {
+    override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean {
         calls += Triple(id, v0, v1)
         return true
     }
