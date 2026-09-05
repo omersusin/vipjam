@@ -48,6 +48,43 @@ object PresetApplier {
         return ok
     }
 
+    fun withGroupScalar(settingsJson: String, group: String, field: String, value: Double): String {
+        require(group in SCALAR_GROUPS) { "unknown group: $group" }
+        val obj = JSONObject(settingsJson)
+        require(obj.has(group)) { "group absent: $group" }
+        when (group) {
+            VipJamEffects.BASS, VipJamEffects.CLARITY -> {
+                require(field == "gain") { "unknown field: $group.$field" }
+                obj.getJSONObject(group).put("gain", value.roundToInt())
+            }
+            VipJamEffects.REVERB -> {
+                require(field in REVERB_FIELDS) { "unknown field: $group.$field" }
+                obj.getJSONObject(group).put(field, value.roundToInt())
+            }
+            VipJamEffects.EQ -> {
+                val g = obj.getJSONObject(group)
+                require(g.has("bands")) { "group has no bands: $group" }
+                val bands = g.getJSONArray("bands")
+                val index = field.toIntOrNull()
+                    ?: throw IllegalArgumentException("band index out of range: $field")
+                require(index in 0 until bands.length()) {
+                    "band index out of range: $field"
+                }
+                bands.put(index, value)
+            }
+        }
+        return obj.toString()
+    }
+
+    private val SCALAR_GROUPS = setOf(
+        VipJamEffects.BASS,
+        VipJamEffects.CLARITY,
+        VipJamEffects.REVERB,
+        VipJamEffects.EQ,
+    )
+
+    private val REVERB_FIELDS = setOf("roomSize", "width", "damp")
+
     private inline fun group(
         obj: JSONObject,
         key: String,

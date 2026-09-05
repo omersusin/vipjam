@@ -65,6 +65,13 @@ class VipJamService : Service() {
                 val master = intent.getBooleanExtra(EXTRA_MASTER_ENABLED, true)
                 scope.launch { applyPreset(json, master) }
             }
+            ACTION_DISPATCH_PARAM -> {
+                val id = intent.getIntExtra(EXTRA_PARAM_ID, 0)
+                val v0 = intent.getIntExtra(EXTRA_PARAM_V0, 0)
+                val v1 = intent.getIntExtra(EXTRA_PARAM_V1, 0)
+                val v2 = intent.getIntExtra(EXTRA_PARAM_V2, 0)
+                scope.launch { dispatchParamNow(id, v0, v1, v2) }
+            }
         }
         return START_STICKY
     }
@@ -78,6 +85,12 @@ class VipJamService : Service() {
     }
 
     private fun applyProfile(profile: String) {
+    }
+
+    private fun dispatchParamNow(id: Int, v0: Int, v1: Int, v2: Int) {
+        if (!dispatcher.create()) return
+        if (id in SINGLE_INT_PARAMS) dispatcher.setParam(id, v0)
+        else dispatcher.setParam(id, v0, v1, v2)
     }
 
     private fun applyPreset(settingsJson: String, masterOn: Boolean) {
@@ -120,6 +133,21 @@ class VipJamService : Service() {
         const val EXTRA_MASTER_ENABLED = "master_enabled"
         const val EXTRA_PROFILE = "profile"
         const val EXTRA_PRESET_JSON = "preset_json"
+        const val ACTION_DISPATCH_PARAM = "com.vipjam.action.DISPATCH_PARAM"
+        const val EXTRA_PARAM_ID = "param_id"
+        const val EXTRA_PARAM_V0 = "param_v0"
+        const val EXTRA_PARAM_V1 = "param_v1"
+        const val EXTRA_PARAM_V2 = "param_v2"
+
+        private val SINGLE_INT_PARAMS = setOf(
+            VipJamDispatcher.P_MASTER,
+            VipJamDispatcher.P_BASS_ENABLE,
+            VipJamDispatcher.P_BASS_GAIN,
+            VipJamDispatcher.P_CLARITY_ENABLE,
+            VipJamDispatcher.P_EQ_ENABLE,
+            VipJamDispatcher.P_REVERB_ENABLE,
+            VipJamDispatcher.P_CONV_ENABLE,
+        )
 
         fun start(context: Context, masterOn: Boolean) {
             val intent = Intent(context, VipJamService::class.java).apply {
@@ -133,6 +161,17 @@ class VipJamService : Service() {
             val intent = Intent(context, VipJamService::class.java).apply {
                 action = ACTION_SET_PROFILE
                 putExtra(EXTRA_PROFILE, profile)
+            }
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun dispatchParam(context: Context, id: Int, v0: Int, v1: Int = 0, v2: Int = 0) {
+            val intent = Intent(context, VipJamService::class.java).apply {
+                action = ACTION_DISPATCH_PARAM
+                putExtra(EXTRA_PARAM_ID, id)
+                putExtra(EXTRA_PARAM_V0, v0)
+                putExtra(EXTRA_PARAM_V1, v1)
+                putExtra(EXTRA_PARAM_V2, v2)
             }
             ContextCompat.startForegroundService(context, intent)
         }

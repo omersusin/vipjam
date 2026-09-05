@@ -690,3 +690,75 @@ AI auto-preset/personalization/federated models/lyrics-AI/needle/voice parser.
 - `qumolangmo/wecho`: Shizuku + `DUMP`/`PROJECT_MEDIA` grants, per-device
   profiles, app blacklist, C-language custom DSP. Second confirmation of the
   rootless-v2 recipe (alongside RootlessJamesDSP).
+
+---
+
+## 15. Harvest log — adopted external work (all approved)
+
+### 15.1 Lunaris Dolby deep-dive (`upstream-lunaris-dolby/`, Apache-2.0 code only; blobs proprietary — never redistribute)
+Vendor ODM Dolby Atmos port (OnePlus DAX v3_6, 32-bit FX) with Kotlin priv-app.
+Effect UUIDs: proxy `9d4921da-…`, sw `6ab06da4-…` (`libswdap_v3_6.so`),
+hw `a0c30891-…` (`libhwdap_v3_6.so`); app opens session 0, priority 100.
+ADOPTED into VipJam (in priority order):
+1. **Per-device memory** — snapshot all params + 20-band EQ per output key
+   (`bt_MAC`/`wired_headphones`/`builtin_speaker`), versioned restore
+   (`SNAPSHOT_VERSION`). App target: extend `PresetStore` with device keys.
+2. **Hot re-apply** — `AudioDeviceCallback` (save old / restore new) +
+   `AudioPlaybackCallback` (apply on active) + recreate-on-audio-server-death
+   with saved-profile restore. Service target: `VipJamService`.
+3. **Per-app profiles without root** — `UsageStatsManager` foreground poll
+   (2s) + 300ms debounced switch + headphone-only gate. Needs
+   `PACKAGE_USAGE_STATS` + `QUERY_ALL_PACKAGES` + notification-listener.
+4. **AutoEQ subsystem** — `HttpURLConnection` downloader + metadata/index
+   cache + `LruCache(50)`, pointed at the AutoEq host. Extends
+   `tools/fetch_kernels.py` into in-app curves.
+5. **Priv-app shell** — `sharedUserId=android.uid.system`, `BOOT_COMPLETED`
+   (locked-boot aware), `DISPLAY_AUDIO_EFFECT_CONTROL_PANEL` intent,
+   `SummaryProvider`, QS tile, `FileProvider` preset import/export,
+   `MusicFX/AudioFX` overrides, privapp-permissions XML.
+6. **Shim recipe** — stub missing symbols (`GraphicBufferSource`-style) +
+   `patchelf --add-needed/--replace-needed` for old blobs on new AOSP.
+   Module target for any vendored-blob future.
+7. **sepolicy → magiskpolicy** — translate `hal_dms*` rules when a HAL
+   service ever ships; HIDL `.so` needs none (AML-compatible as today).
+8. **Bringup pattern** — `dolby.mk` Soong/copy/VINTF shape, `rootdir` init
+   (`mkdir /data/vendor/…`), empty device manifest to avoid dup C2.
+   Reference only (no Soong in VipJam).
+
+### 15.2 Scene survey 2025–2026 (adopted)
+- **ViPERFX_RE (likelikeslike, alive v2.0.0 2026-07)**: ship dual
+  legacy-`effect_param_t` + AIDL-SHM zips with in-app HAL auto-detect
+  (AIDL mandatory A15+); per-device profiles + auto-switch; per-app mode
+  via priv-app `MODIFY_AUDIO_ROUTING` else `su dumpsys` fallback; in-app
+  log viewer. DSP notes: DiffSurround Reverse, ViPERBass fade-in, float32
+  pipeline.
+- **JamesDSP (semi-dead upstream; JDSP4Linux maintenance-alive;
+  RootlessJamesDSP slow-alive)**: adopt D-Bus/CLI headless pattern +
+  per-device preset rules sidecar; engine notes (compander TF param,
+  convolver benchmark, tanh-softclip revert).
+- **Dolby ports (ReiRyuki alive; Lunaris alive 2026-04)**: KSU install
+  recipe (early-init mount, unmount-module flags, `data.cleanup=1`,
+  `daxService` conflicts); Lineage `libutils.so` + Magisk 30.7
+  `libmagiskpolicy.so` pinning.
+- **Ainur Silmaril (alive v19.61 2026-07)**: staged hw/sw/env detect
+  (Qcom/MTK/Tensor), `silmaril_useroptions` reinstall-to-apply pattern;
+  mods list (SFX cleanup, mixer `hph-highquality-mode`, compander remover,
+  attenuated volume curve).
+- **AML (upstream dead; Ryuki-Mod alive v5.1)**: ship `aml.sh`, require it
+  per mod, drop `patch_cfgs()`, copy Ryuki bind-mount/NoMount/skip-spatializer
+  fixes; test with Ryuki AML + ACP Reborn.
+- **Wavelet (alive 26.05 2026-05)**: auto-AIDL detection, enhanced session
+  detection, BLE hearing-aid detect, M3 Expressive bits; loudness already
+  mirrored in `VipJamLoudness`.
+- **Hi-Res (ReiRyuki alive)**: policy-only 24/32-bit + `hph-highquality-mode`,
+  verify via `dumpsys audio`. Module target.
+- **Poweramp DVC lesson**: direct HW volume for headroom (bass without
+  distortion); per-output override. Design note for limiter/volume work.
+- **cyfanFX (dead, CC BY-SA)**: bundle LoongFX movie presets/IRS as
+  starters with attribution (extends `presets/`).
+
+### 15.3 Rootless v2 track (approved, post-v1)
+MediaProjection + Shizuku + `PROJECT_MEDIA` (RootlessJamesDSP pattern,
+second-confirmed by wecho/Shizuku+DUMP): capture engine, A15 screen-share
+protection workaround note, ReVanced gap note, per-device profiles, app
+blacklist. Stays parked behind system-effect v1.

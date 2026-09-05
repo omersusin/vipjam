@@ -9,12 +9,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,14 +27,53 @@ import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetImporter
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
-import com.vipjam.service.VipJamService
+import com.vipjam.dsp.PresetApplier
+import com.vipjam.dsp.VipJamDispatcher
+import com.vipjam.effect.VipJamEffects
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import kotlin.math.roundToInt
+
+private data class LiveParam(val id: Int, val v0: Int, val v1: Int, val v2: Int)
+
+private fun liveParam(settingsJson: String, group: String, field: String): LiveParam? {
+    val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return null
+    val g = obj.optJSONObject(group) ?: return null
+    return when (group) {
+        VipJamEffects.BASS ->
+            LiveParam(VipJamDispatcher.P_BASS_GAIN, g.optInt("gain", 50), 0, 0)
+        VipJamEffects.CLARITY ->
+            LiveParam(
+                VipJamDispatcher.F_CLARITY,
+                g.optInt("gain", 50),
+                g.optInt("mode", 0),
+                0,
+            )
+        VipJamEffects.REVERB ->
+            LiveParam(
+                VipJamDispatcher.F_REVERB,
+                g.optInt("roomSize", 0),
+                g.optInt("width", 0),
+                g.optInt("damp", 0),
+            )
+        VipJamEffects.EQ -> {
+            val index = field.toIntOrNull() ?: return null
+            val bands = g.optJSONArray("bands") ?: return null
+            if (index !in 0 until bands.length()) return null
+            LiveParam(VipJamDispatcher.F_EQ, index, bands.optDouble(index).roundToInt(), 0)
+        }
+        else -> null
+    }
+}
 
 @Composable
 fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val debounceJobs = remember { mutableMapOf<String, Job>() }
     val masterOn by context.prefs.data
         .map { it[VipJamPrefs.MASTER_ENABLE] ?: false }
         .collectAsState(initial = false)
@@ -68,6 +109,28 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
             store.save(PresetEntry(current.name, updated))
                 .onSuccess { snackbar.showSnackbar("$group ${if (on) "on" else "off"}") }
                 .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+        }
+    }
+
+    fun onScalar(group: String, field: String, value: Double) {
+        val current = active ?: return
+        val updated = try {
+            PresetApplier.withGroupScalar(current.settingsJson, group, field, value)
+        } catch (e: Exception) {
+            return
+        }
+        val live = liveParam(updated, group, field)
+        scope.launch {
+            store.save(PresetEntry(current.name, updated))
+                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+        }
+        val key = "$group:$field"
+        debounceJobs[key]?.cancel()
+        debounceJobs[key] = scope.launch {
+            delay(120)
+            if (live != null) {
+                VipJamService.dispatchParam(context, live.id, live.v0, live.v1, live.v2)
+            }
         }
     }
 
@@ -111,10 +174,97 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
             )
         }
         items(groups, key = { it.first }) { (group, on) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(group, modifier = Modifier.weight(1f))
-                Switch(checked = on, onCheckedChange = { flipGroup(group, it) })
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(group, modifier = Modifier.weight(1f))
+                    Switch(checked = on, onCheckedChange = { flipGroup(group, it) })
+                }
+                if (on && active != null) {
+                    GroupScalars(
+                        settingsJson = active.settingsJson,
+                        group = group,
+                        onScalar = ::onScalar,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun GroupScalars(
+    settingsJson: String,
+    group: String,
+    onScalar: (String, String, Double) -> Unit,
+) {
+    val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return
+    val g = obj.optJSONObject(group) ?: return
+    when (group) {
+        VipJamEffects.BASS -> {
+            ScalarSlider(
+                label = "Gain",
+                value = g.optInt("gain", 50).toFloat(),
+                range = 50f..1000f,
+                onChange = { onScalar(group, "gain", it.toDouble()) },
+            )
+        }
+        VipJamEffects.CLARITY -> {
+            ScalarSlider(
+                label = "Gain",
+                value = g.optInt("gain", 50).toFloat(),
+                range = 0f..450f,
+                onChange = { onScalar(group, "gain", it.toDouble()) },
+            )
+        }
+        VipJamEffects.REVERB -> {
+            ScalarSlider(
+                label = "Room size",
+                value = g.optInt("roomSize", 0).toFloat(),
+                range = 0f..100f,
+                onChange = { onScalar(group, "roomSize", it.toDouble()) },
+            )
+            ScalarSlider(
+                label = "Width",
+                value = g.optInt("width", 0).toFloat(),
+                range = 0f..100f,
+                onChange = { onScalar(group, "width", it.toDouble()) },
+            )
+            ScalarSlider(
+                label = "Damp",
+                value = g.optInt("damp", 0).toFloat(),
+                range = 0f..100f,
+                onChange = { onScalar(group, "damp", it.toDouble()) },
+            )
+        }
+        VipJamEffects.EQ -> {
+            val bands = g.optJSONArray("bands") ?: return
+            val bandCount = g.optInt("bandCount", bands.length())
+            for (i in 0 until minOf(bandCount, bands.length())) {
+                ScalarSlider(
+                    label = "Band $i",
+                    value = bands.optDouble(i).toFloat(),
+                    range = -12f..12f,
+                    onChange = { onScalar(group, i.toString(), it.toDouble()) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScalarSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit,
+) {
+    val coerced = value.coerceIn(range.start, range.endInclusive)
+    Column {
+        Text("$label: $coerced", style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = coerced,
+            onValueChange = onChange,
+            valueRange = range,
+        )
     }
 }
