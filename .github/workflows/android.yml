@@ -225,6 +225,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          apk=$(ls app-skeleton/app/build/outputs/apk/release/*.apk | head -1)
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
           zip=$(ls /tmp/vipjam-module/vipjam-magisk-*.zip | head -1)
-          gh release upload "${GITHUB_REF#refs/tags/}" "$apk" "$zip" --clobber
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "VipJam $tag" --notes "Automated release build."
+          gh release upload "$tag" "$apk" "$zip" --clobber
