@@ -402,6 +402,89 @@ static void test_array_reject(void) {
           "hal unknown array rejected");
 }
 
+static void test_liveprog_roundtrip(void) {
+    VipJamContext ctx;
+    std::string script = "@init\ngain = 2.0;\n@sample\n";
+    for (int i = 0; i < 400; i++)
+        script += "spl0 = spl0 * gain;\nspl1 = spl1 * gain;\n";
+    uint32_t total = (uint32_t)script.size();
+    CHECK(total > 8184, "hal liveprog script spans chunks");
+    uint32_t crc = crc32ieee(script.data(), total);
+    int32_t sid = 77;
+    CHECK(sendParam3(&ctx, JDSP_STR_ALLOC, (int32_t)total, 8184, sid) == 0,
+          "hal liveprog alloc");
+    uint32_t off = 0;
+    int32_t idx = 0;
+    int32_t chunkRc = 0;
+    char name[64];
+    while (off < total) {
+        uint32_t len = total - off;
+        if (len > 8184) len = 8184;
+        unsigned char wire[8192];
+        memset(wire, 0, sizeof(wire));
+        memcpy(wire, &idx, 4);
+        memcpy(wire + 4, &len, 4);
+        memcpy(wire + 8, script.data() + off, len);
+        snprintf(name, sizeof(name), "hal liveprog chunk%d", idx);
+        chunkRc = sendBlob(&ctx, JDSP_STR_CHUNK, wire, sizeof(wire));
+        CHECK(chunkRc == 0, name);
+        if (chunkRc != 0) break;
+        off += len;
+        idx++;
+    }
+    CHECK(off == total, "hal liveprog all bytes staged");
+    CHECK(sendParam3(&ctx, JDSP_COMMIT_LIVEPROG, (int32_t)total,
+                     (int32_t)crc, sid) == 0,
+          "hal liveprog commit");
+    CHECK(ctx.lastLiveProg() == script, "hal liveprog held script");
+    CHECK(ctx.chain()->isStageEnabled(VJ_STAGE_JAMES_LIVEPROG),
+          "hal liveprog stage on");
+}
+
+static void test_liveprog_reject(void) {
+    VipJamContext ctx;
+    std::string script =
+        "@init\ngain = 2.0;\n@sample\nspl0 = spl0 * gain;\nspl1 = spl1 * gain;\n";
+    uint32_t total = (uint32_t)script.size();
+    uint32_t crc = crc32ieee(script.data(), total);
+    unsigned char wire[8192];
+    memset(wire, 0, sizeof(wire));
+    int32_t idx = 0;
+    memcpy(wire, &idx, 4);
+    memcpy(wire + 4, &total, 4);
+    memcpy(wire + 8, script.data(), total);
+    CHECK(sendBlob(&ctx, JDSP_STR_CHUNK, wire, sizeof(wire)) != 0,
+          "hal liveprog chunk w/o alloc rejected");
+    CHECK(sendParam3(&ctx, JDSP_STR_ALLOC, (int32_t)total, 0, 1) != 0,
+          "hal liveprog zero chunk size rejected");
+    CHECK(sendParam3(&ctx, JDSP_STR_ALLOC, (int32_t)0x40000000, 8184, 1) !=
+              0,
+          "hal liveprog oversize rejected");
+    CHECK(sendParam3(&ctx, JDSP_STR_ALLOC, (int32_t)total, 8184, 1) == 0,
+          "hal liveprog reject alloc ok");
+    idx = 1;
+    memcpy(wire, &idx, 4);
+    CHECK(sendBlob(&ctx, JDSP_STR_CHUNK, wire, sizeof(wire)) != 0,
+          "hal liveprog order enforced");
+    idx = 0;
+    memcpy(wire, &idx, 4);
+    CHECK(sendBlob(&ctx, JDSP_STR_CHUNK, wire, sizeof(wire)) == 0,
+          "hal liveprog reject chunk0 ok");
+    CHECK(sendParam3(&ctx, JDSP_COMMIT_LIVEPROG, (int32_t)total,
+                     (int32_t)(crc ^ 0xFFu), 1) != 0,
+          "hal liveprog crc mismatch rejected");
+    CHECK(sendParam3(&ctx, JDSP_COMMIT_LIVEPROG, (int32_t)total + 1,
+                     (int32_t)crc, 1) != 0,
+          "hal liveprog size mismatch rejected");
+    CHECK(sendParam3(&ctx, JDSP_COMMIT_LIVEPROG, (int32_t)total,
+                     (int32_t)crc, 2) != 0,
+          "hal liveprog id mismatch rejected");
+    CHECK(sendParam3(&ctx, JDSP_COMMIT_LIVEPROG, (int32_t)total,
+                     (int32_t)crc, 1) == 0,
+          "hal liveprog commit after rejects");
+    CHECK(ctx.lastLiveProg() == script, "hal liveprog held after rejects");
+}
+
 int main(void) {
     CHECK(EFFECT_CMD_ENABLE == 3, "hal cmd codes match aosp");
     test_lifecycle();
@@ -411,6 +494,8 @@ int main(void) {
     test_eq_array();
     test_kernel_chunked();
     test_array_reject();
+    test_liveprog_roundtrip();
+    test_liveprog_reject();
     if (failures == 0) printf("ALL GREEN\n");
     else printf("%d FAILURES\n", failures);
     return failures ? 1 : 0;

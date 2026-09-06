@@ -27,6 +27,12 @@
 #define VJ_PID_CONV_CHUNK_NEW 0x101B3
 #define VJ_PID_CONV_COMMIT_CLASSIC 65542
 #define VJ_PID_CONV_COMMIT_NEW 0x101B4
+#define VJ_PID_STR_ALLOC JDSP_STR_ALLOC
+#define VJ_PID_STR_CHUNK JDSP_STR_CHUNK
+#define VJ_PID_LIVEPROG_COMMIT JDSP_COMMIT_LIVEPROG
+#define VJ_SCRIPT_CHUNK_BYTES 8192
+#define VJ_SCRIPT_BYTES_PER_CHUNK (VJ_SCRIPT_CHUNK_BYTES - 8)
+#define VJ_SCRIPT_MAX_BYTES (1u << 20)
 #define VJ_KERNEL_CHUNK_BYTES 8192
 #define VJ_KERNEL_MAX_FLOATS_PER_CHUNK 2046
 #define VJ_KERNEL_MAX_TOTAL_FLOATS (1u << 22)
@@ -62,7 +68,8 @@ public:
     VipJamContext()
         : disableReason_(DisableReason::NONE), enable_(false),
           processedFrames_(0), lastStreamingFrames_(0), kernelTotal_(0),
-          kernelChannels_(0), kernelNext_(0) {
+          kernelChannels_(0), kernelNext_(0), scriptTotal_(0),
+          scriptChunk_(0), scriptNext_(0), scriptId_(0) {
         memset(&config_, 0, sizeof(config_));
     }
 
@@ -84,6 +91,7 @@ public:
             if (replySize == nullptr || *replySize != sizeof(int32_t)) return -EINVAL;
             chain_.reset();
             kernelReset();
+            scriptReset();
             *static_cast<int32_t *>(replyData) = 0;
             return 0;
         case EFFECT_CMD_ENABLE:
@@ -175,6 +183,7 @@ public:
 
     VipJamChain *chain() { return &chain_; }
     bool enabled() const { return enable_; }
+    const std::string &lastLiveProg() const { return lastScript_; }
 
 private:
     void handleSetConfig(effect_config_t *cfg) {
@@ -198,6 +207,7 @@ private:
         chain_.setSamplingRate(config_.input_cfg.sampling_rate);
         chain_.reset();
         kernelReset();
+        scriptReset();
         work_.clear();
     }
 
@@ -214,13 +224,17 @@ private:
             return rc;
         }
         if (param->vsize == VJ_KERNEL_CHUNK_BYTES) {
-            rc = handleKernelChunk(id, v);
+            if (isScriptChunk(id)) rc = handleScriptChunk(id, v);
+            else rc = handleKernelChunk(id, v);
             *static_cast<int32_t *>(replyData) = rc;
             return rc;
         }
         if (param->vsize == 3 * sizeof(int32_t) &&
-            (isConvPrepare(id) || isConvCommit(id))) {
-            rc = handleKernelControl(id, v);
+            (isConvPrepare(id) || isConvCommit(id) || isScriptAlloc(id) ||
+             isScriptCommit(id))) {
+            if (isScriptAlloc(id) || isScriptCommit(id))
+                rc = handleScriptControl(id, v);
+            else rc = handleKernelControl(id, v);
             *static_cast<int32_t *>(replyData) = rc;
             return rc;
         }
@@ -323,6 +337,91 @@ private:
         return id == VJ_PID_CONV_COMMIT_CLASSIC || id == VJ_PID_CONV_COMMIT_NEW;
     }
 
+    static bool isScriptAlloc(int32_t id) {
+        return id == VJ_PID_STR_ALLOC;
+    }
+
+    static bool isScriptChunk(int32_t id) {
+        return id == VJ_PID_STR_CHUNK;
+    }
+
+    static bool isScriptCommit(int32_t id) {
+        return id == VJ_PID_LIVEPROG_COMMIT;
+    }
+
+    static uint32_t scriptCrc32(const char *data, uint32_t len) {
+        static uint32_t table[256];
+        static int ready = 0;
+        if (!ready) {
+            for (uint32_t i = 0; i < 256; i++) {
+                uint32_t c = i;
+                for (int k = 0; k < 8; k++)
+                    c = (c & 1) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+                table[i] = c;
+            }
+            ready = 1;
+        }
+        uint32_t crc = 0xFFFFFFFFu;
+        const unsigned char *b = (const unsigned char *)data;
+        for (uint32_t i = 0; i < len; i++)
+            crc = table[(crc ^ b[i]) & 0xFF] ^ (crc >> 8);
+        return crc ^ 0xFFFFFFFFu;
+    }
+
+    void scriptReset() {
+        scriptBuf_.clear();
+        scriptTotal_ = 0;
+        scriptChunk_ = 0;
+        scriptNext_ = 0;
+        scriptId_ = 0;
+    }
+
+    int32_t handleScriptControl(int32_t id, const char *v) {
+        int32_t a, b, c;
+        memcpy(&a, v, 4);
+        memcpy(&b, v + 4, 4);
+        memcpy(&c, v + 8, 4);
+        if (isScriptAlloc(id)) {
+            if (a <= 0 || (uint32_t)a > VJ_SCRIPT_MAX_BYTES) return -EINVAL;
+            if (b <= 0 || (uint32_t)b > VJ_SCRIPT_BYTES_PER_CHUNK)
+                return -EINVAL;
+            scriptBuf_.clear();
+            scriptBuf_.reserve((uint32_t)a);
+            scriptTotal_ = (uint32_t)a;
+            scriptChunk_ = (uint32_t)b;
+            scriptNext_ = 0;
+            scriptId_ = c;
+            return 0;
+        }
+        if (scriptTotal_ == 0) return -EINVAL;
+        if (a <= 0 || (uint32_t)a != scriptTotal_) return -EINVAL;
+        if (scriptBuf_.size() != scriptTotal_) return -EINVAL;
+        if (c != scriptId_) return -EINVAL;
+        if (scriptCrc32(scriptBuf_.data(), scriptTotal_) != (uint32_t)b)
+            return -EINVAL;
+        lastScript_.assign(scriptBuf_.data(), scriptTotal_);
+        int rc = chain_.loadLiveProg(lastScript_.c_str());
+        if (rc <= 0) return -EINVAL;
+        chain_.setStageEnabled(VJ_STAGE_JAMES_LIVEPROG, true);
+        scriptReset();
+        return 0;
+    }
+
+    int32_t handleScriptChunk(int32_t id, const char *v) {
+        if (!isScriptChunk(id)) return -EINVAL;
+        if (scriptTotal_ == 0) return -EINVAL;
+        int32_t idx;
+        uint32_t len;
+        memcpy(&idx, v, 4);
+        memcpy(&len, v + 4, 4);
+        if (idx < 0 || (uint32_t)idx != scriptNext_) return -EINVAL;
+        if (len == 0 || len > VJ_SCRIPT_BYTES_PER_CHUNK) return -EINVAL;
+        if (len > scriptTotal_ - (uint32_t)scriptBuf_.size()) return -EINVAL;
+        scriptBuf_.insert(scriptBuf_.end(), v + 8, v + 8 + len);
+        scriptNext_++;
+        return 0;
+    }
+
     void kernelReset() {
         kernelBuf_.clear();
         kernelTotal_ = 0;
@@ -419,6 +518,12 @@ private:
     uint32_t kernelTotal_;
     uint32_t kernelChannels_;
     uint32_t kernelNext_;
+    std::vector<char> scriptBuf_;
+    uint32_t scriptTotal_;
+    uint32_t scriptChunk_;
+    uint32_t scriptNext_;
+    int32_t scriptId_;
+    std::string lastScript_;
     VipJamChain chain_;
 };
 

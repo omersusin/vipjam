@@ -99,6 +99,30 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         return true
     }
 
+    fun sendScript(script: String, scriptId: Int = 1): Boolean {
+        val data = try {
+            scriptBytes(script)
+        } catch (e: Exception) {
+            Log.w(TAG, "sendScript rejected", e)
+            return false
+        }
+        if (data.isEmpty() || data.size > LIVEPROG_MAX_BYTES) {
+            Log.w(TAG, "sendScript rejected: bad size ${data.size}")
+            return false
+        }
+        val chunks = try {
+            chunkScriptBytes(data, LIVEPROG_BYTES_PER_CHUNK)
+        } catch (e: Exception) {
+            Log.w(TAG, "sendScript rejected", e)
+            return false
+        }
+        if (!setBytes(intBytes(LIVEPROG_ALLOC), buildScriptAlloc(data.size, LIVEPROG_BYTES_PER_CHUNK, scriptId))) return false
+        for ((index, chunk) in chunks.withIndex()) {
+            if (!setBytes(intBytes(LIVEPROG_CHUNK), buildScriptChunk(index, chunk))) return false
+        }
+        return setBytes(intBytes(LIVEPROG_COMMIT), buildScriptCommit(data.size, crc32IEEE(data), scriptId))
+    }
+
     fun getParam(id: Int): Int? {
         val fx = synchronized(lock) { effect } ?: return null
         return try {
@@ -194,6 +218,12 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         const val CONV_CHUNK_NEW = 0x101B3
         const val CONV_COMMIT_CLASSIC = 65542
         const val CONV_COMMIT_NEW = 0x101B4
+        const val LIVEPROG_ALLOC = 8888
+        const val LIVEPROG_CHUNK = 12001
+        const val LIVEPROG_COMMIT = 10010
+        const val LIVEPROG_CHUNK_BYTES = 8192
+        const val LIVEPROG_BYTES_PER_CHUNK = 8184
+        const val LIVEPROG_MAX_BYTES = 1048576
         const val KERNEL_CHUNK_BYTES = 8192
         const val KERNEL_MAX_FLOATS_PER_CHUNK = 2046
         const val KERNEL_MAX_TOTAL_FLOATS = 4194304
@@ -261,6 +291,45 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
                 return buildDdcPayload(values.sliceArray(0 until per), values.sliceArray(per until values.size))
             }
             throw IllegalArgumentException("unsupported bulk param: $cmdId")
+        }
+
+        fun buildScriptAlloc(totalBytes: Int, chunkSize: Int, scriptId: Int): ByteArray {
+            require(totalBytes in 1..LIVEPROG_MAX_BYTES)
+            require(chunkSize in 1..LIVEPROG_BYTES_PER_CHUNK)
+            return ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(totalBytes).putInt(chunkSize).putInt(scriptId).array()
+        }
+
+        fun buildScriptCommit(totalBytes: Int, crc32: Int, scriptId: Int): ByteArray {
+            require(totalBytes in 1..LIVEPROG_MAX_BYTES)
+            return ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(totalBytes).putInt(crc32).putInt(scriptId).array()
+        }
+
+        fun buildScriptChunk(index: Int, data: ByteArray): ByteArray {
+            require(index >= 0)
+            require(data.isNotEmpty() && data.size <= LIVEPROG_BYTES_PER_CHUNK)
+            val out = ByteBuffer.allocate(LIVEPROG_CHUNK_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(index)
+            out.putInt(data.size)
+            out.put(data)
+            return out.array()
+        }
+
+        fun scriptBytes(script: String): ByteArray =
+            script.toByteArray(Charsets.UTF_8)
+
+        fun chunkScriptBytes(data: ByteArray, chunkSize: Int): List<ByteArray> {
+            require(chunkSize in 1..LIVEPROG_BYTES_PER_CHUNK)
+            require(data.isNotEmpty() && data.size <= LIVEPROG_MAX_BYTES)
+            val out = ArrayList<ByteArray>((data.size + chunkSize - 1) / chunkSize)
+            var off = 0
+            while (off < data.size) {
+                val end = minOf(off + chunkSize, data.size)
+                out.add(data.sliceArray(off until end))
+                off = end
+            }
+            return out
         }
 
         fun buildKernelPrepare(totalFloats: Int, channels: Int, resetFlag: Int): ByteArray {

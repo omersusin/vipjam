@@ -209,4 +209,119 @@ class VipJamBulkTest {
         assertEquals(2046, VipJamDispatcher.KERNEL_MAX_FLOATS_PER_CHUNK)
         assertTrue(VipJamDispatcher.EQ_MAX_BANDS == 31)
     }
+
+    @Test
+    fun `liveprog wire ids match native defines`() {
+        assertEquals(8888, VipJamDispatcher.LIVEPROG_ALLOC)
+        assertEquals(12001, VipJamDispatcher.LIVEPROG_CHUNK)
+        assertEquals(10010, VipJamDispatcher.LIVEPROG_COMMIT)
+        assertEquals(8192, VipJamDispatcher.LIVEPROG_CHUNK_BYTES)
+        assertEquals(8184, VipJamDispatcher.LIVEPROG_BYTES_PER_CHUNK)
+        assertEquals(1048576, VipJamDispatcher.LIVEPROG_MAX_BYTES)
+    }
+
+    @Test
+    fun `script alloc and commit match native control order`() {
+        assertArrayEquals(intArrayOf(128, 8184, 7), leInts(VipJamDispatcher.buildScriptAlloc(128, 8184, 7), 3))
+        val crc = VipJamDispatcher.crc32IEEE("abc".toByteArray(Charsets.UTF_8))
+        assertArrayEquals(intArrayOf(3, crc, 7), leInts(VipJamDispatcher.buildScriptCommit(3, crc, 7), 3))
+    }
+
+    @Test
+    fun `script chunk matches native wire`() {
+        val data = "spl0 = 1;".toByteArray(Charsets.UTF_8)
+        val wire = VipJamDispatcher.buildScriptChunk(2, data)
+        assertEquals(8192, wire.size)
+        val head = leInts(wire, 2)
+        assertEquals(2, head[0])
+        assertEquals(data.size, head[1])
+        assertArrayEquals(data, wire.sliceArray(8 until 8 + data.size))
+        for (i in (8 + data.size) until 8192) assertEquals(0, wire[i])
+    }
+
+    @Test
+    fun `script chunking splits across bytes per chunk`() {
+        val data = ByteArray(8184 * 2 + 10) { it.toByte() }
+        val chunks = VipJamDispatcher.chunkScriptBytes(data, 8184)
+        assertEquals(3, chunks.size)
+        assertEquals(8184, chunks[0].size)
+        assertEquals(8184, chunks[1].size)
+        assertEquals(10, chunks[2].size)
+        assertArrayEquals(data.sliceArray(8184 * 2 until data.size), chunks[2])
+    }
+
+    @Test
+    fun `script builders reject bad sizes`() {
+        try {
+            VipJamDispatcher.buildScriptAlloc(0, 8184, 1)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptAlloc(3, 0, 1)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptAlloc(1048577, 8184, 1)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptAlloc(3, 8185, 1)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptCommit(0, 1, 1)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptChunk(-1, byteArrayOf(1))
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptChunk(0, ByteArray(0))
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.buildScriptChunk(0, ByteArray(8185))
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.chunkScriptBytes(ByteArray(0), 8184)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.chunkScriptBytes(byteArrayOf(1), 0)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+        try {
+            VipJamDispatcher.chunkScriptBytes(byteArrayOf(1), 8185)
+            fail("expected rejection")
+        } catch (_: IllegalArgumentException) {
+        }
+    }
+
+    @Test
+    fun `script bytes round trip utf8 and crc stable`() {
+        val text = "@init\ngain = 2.0;\n@sample\nspl0 = spl0 * gain;\n"
+        val data = VipJamDispatcher.scriptBytes(text)
+        assertArrayEquals(text.toByteArray(Charsets.UTF_8), data)
+        assertEquals(VipJamDispatcher.crc32IEEE(data), VipJamDispatcher.crc32IEEE(data))
+        assertTrue(VipJamDispatcher.crc32IEEE(data) != VipJamDispatcher.crc32IEEE(data + byteArrayOf(0)))
+    }
+
+    @Test
+    fun `sendScript returns false without driver`() {
+        val dispatcher = VipJamDispatcher(0)
+        assertFalse(dispatcher.sendScript("@init\n@sample\n"))
+        assertFalse(dispatcher.sendScript(""))
+    }
 }

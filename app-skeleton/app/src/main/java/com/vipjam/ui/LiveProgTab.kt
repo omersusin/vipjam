@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.vipjam.data.LiveProgEntry
 import com.vipjam.data.LiveProgScripts
 import com.vipjam.data.LiveProgStore
+import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.EmptyState
 import com.vipjam.ui.components.SectionHeader
 import com.vipjam.ui.components.rememberReducedMotion
@@ -51,11 +52,6 @@ private val EXAMPLES = listOf(
     "Soft clip guard" to "@init\nthresh = 0.9;\n\n@sample\nspl0 = max(-thresh, min(thresh, spl0));\nspl1 = max(-thresh, min(thresh, spl1));\n",
     "440Hz test sine" to "@init\nfreq = 440;\nphase = 0;\nstep = 2 * \$pi * freq / srate;\n\n@sample\nphase = phase + step;\nspl0 = 0.2 * sin(phase);\nspl1 = 0.2 * sin(phase);\n",
 )
-
-private const val NO_ENGINE_STDERR =
-    "LiveProg engine not present in this build: no EEL interpreter found under " +
-        "com.vipjam.* (checked LiveProgScripts, LiveProgStore, VipJamService, VipJamNative). " +
-        "Script kept in the run queue below; nothing was executed."
 
 private fun timeOf(millis: Long): String =
     SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(millis))
@@ -95,9 +91,16 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
             queue = listOf(QueuedRun(label, System.currentTimeMillis(), "rejected: validation failed")) + queue
             return
         }
-        stdout = "queued \"$label\" (${text.length} chars) at ${timeOf(System.currentTimeMillis())}"
-        stderr = NO_ENGINE_STDERR
-        queue = listOf(QueuedRun(label, System.currentTimeMillis(), "queued: waiting for engine")) + queue
+        try {
+            VipJamService.dispatchScript(context, text)
+            stdout = "sent \"$label\" (${text.length} chars) at ${timeOf(System.currentTimeMillis())}: driver ack pending"
+            stderr = ""
+            queue = listOf(QueuedRun(label, System.currentTimeMillis(), "sent: awaiting driver ack")) + queue
+        } catch (e: Exception) {
+            stdout = ""
+            stderr = "send failed: ${e.message}"
+            queue = listOf(QueuedRun(label, System.currentTimeMillis(), "failed: send error")) + queue
+        }
     }
 
     val errors = LiveProgScripts.validate(script)
@@ -113,7 +116,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         }
         item {
             Text(
-                "No scripting engine ships in this build — Run validates the script and queues it only. Nothing is executed.",
+                "Run validates the script then sends it to the driver (alloc / chunks / commit). Queue below tracks send status.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -245,7 +248,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
             item {
                 EmptyState(
                     title = "Queue is empty",
-                    body = "Queued runs wait here until a scripting engine exists.",
+                    body = "Sent runs land here with driver ack status.",
                 )
             }
         } else {

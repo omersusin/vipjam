@@ -396,16 +396,33 @@ class VipJamService : Service() {
                     } catch (_: Exception) {
                         null
                     } ?: floatArrayOf()
+                    val raw = try {
+                        intent.getByteArrayExtra(EXTRA_SCRIPT_BYTES)
+                    } catch (_: Exception) {
+                        null
+                    }
                     val v0 = intent.getIntExtra(EXTRA_PARAM_V0, 0)
                     val v1 = intent.getIntExtra(EXTRA_PARAM_V1, 0)
                     val v2 = intent.getIntExtra(EXTRA_PARAM_V2, 0)
                     scope.launch {
                         try {
-                            dispatchBulkNow(id, values, v0, v1, v2)
+                            dispatchBulkNow(id, values, v0, v1, v2, raw)
                         } catch (_: Exception) {
                         }
                     }
                 }
+                ACTION_DISPATCH_SCRIPT -> {
+                    val script = try {
+                        intent.getStringExtra(EXTRA_SCRIPT).orEmpty()
+                    } catch (_: Exception) {
+                        ""
+                    }
+                    val scriptId = intent.getIntExtra(EXTRA_SCRIPT_ID, 1)
+                    scope.launch {
+                        try {
+                            dispatchScriptNow(script, scriptId)
+                        } catch (_: Exception) {
+                        }
                     }
                 }
             }
@@ -528,7 +545,7 @@ class VipJamService : Service() {
         }
     }
 
-    private fun dispatchBulkNow(id: Int, values: FloatArray, v0: Int, v1: Int, v2: Int) {
+    private fun dispatchBulkNow(id: Int, values: FloatArray, v0: Int, v1: Int, v2: Int, raw: ByteArray? = null) {
         try {
             if (id !in KNOWN_PARAM_IDS || id in SINGLE_INT_PARAMS) {
                 Log.w(TAG, "dispatch bulk with unknown id skipped: $id")
@@ -555,10 +572,45 @@ class VipJamService : Service() {
                             id,
                             VipJamDispatcher.buildKernelCommit(v0, v1, v2),
                         )
+                    VipJamDispatcher.LIVEPROG_ALLOC ->
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildScriptAlloc(v0, v1, v2),
+                        )
+                    VipJamDispatcher.LIVEPROG_CHUNK -> {
+                        val bytes = raw ?: return false
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildScriptChunk(v0, bytes),
+                        )
+                    }
+                    VipJamDispatcher.LIVEPROG_COMMIT ->
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildScriptCommit(v0, v1, v2),
+                        )
                     else -> dispatcher.sendFloatArray(id, values)
                 }
             }
             if (!ok) Log.w(TAG, "dispatch bulk failed: id=$id")
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun dispatchScriptNow(script: String, scriptId: Int) {
+        try {
+            if (script.isEmpty()) {
+                Log.w(TAG, "dispatch script with empty text skipped")
+                return
+            }
+            val ok = synchronized(driverLock) {
+                if (!dispatcher.create()) {
+                    Log.w(TAG, "dispatch script: driver unavailable")
+                    return
+                }
+                dispatcher.sendScript(script, scriptId)
+            }
+            if (!ok) Log.w(TAG, "dispatch script failed: id=$scriptId")
         } catch (_: Exception) {
         }
     }
@@ -640,11 +692,15 @@ class VipJamService : Service() {
         const val CMD_SEQ_KEY = "vipjam_cmd_seq"
         const val ACTION_DISPATCH_PARAM = "com.vipjam.action.DISPATCH_PARAM"
         const val ACTION_DISPATCH_BULK = "com.vipjam.action.DISPATCH_BULK"
+        const val ACTION_DISPATCH_SCRIPT = "com.vipjam.action.DISPATCH_SCRIPT"
         const val EXTRA_PARAM_ID = "param_id"
         const val EXTRA_PARAM_VALUES = "param_values"
         const val EXTRA_PARAM_V0 = "param_v0"
         const val EXTRA_PARAM_V1 = "param_v1"
         const val EXTRA_PARAM_V2 = "param_v2"
+        const val EXTRA_SCRIPT = "script_text"
+        const val EXTRA_SCRIPT_ID = "script_id"
+        const val EXTRA_SCRIPT_BYTES = "script_bytes"
 
         private val SINGLE_INT_PARAMS = setOf(
             VipJamDispatcher.P_MASTER,
@@ -684,6 +740,9 @@ class VipJamService : Service() {
             VipJamDispatcher.CONV_CHUNK_NEW,
             VipJamDispatcher.CONV_COMMIT_CLASSIC,
             VipJamDispatcher.CONV_COMMIT_NEW,
+            VipJamDispatcher.LIVEPROG_ALLOC,
+            VipJamDispatcher.LIVEPROG_CHUNK,
+            VipJamDispatcher.LIVEPROG_COMMIT,
         )
 
         fun start(context: Context, masterOn: Boolean) {
@@ -725,7 +784,7 @@ class VipJamService : Service() {
             }
         }
 
-        fun dispatchBulk(context: Context, id: Int, values: FloatArray, v0: Int = 0, v1: Int = 0, v2: Int = 0) {
+        fun dispatchBulk(context: Context, id: Int, values: FloatArray, v0: Int = 0, v1: Int = 0, v2: Int = 0, scriptBytes: ByteArray? = null) {
             try {
                 val intent = Intent(context, VipJamService::class.java).apply {
                     action = ACTION_DISPATCH_BULK
@@ -734,10 +793,24 @@ class VipJamService : Service() {
                     putExtra(EXTRA_PARAM_V0, v0)
                     putExtra(EXTRA_PARAM_V1, v1)
                     putExtra(EXTRA_PARAM_V2, v2)
+                    if (scriptBytes != null) putExtra(EXTRA_SCRIPT_BYTES, scriptBytes)
                 }
                 ContextCompat.startForegroundService(context, intent)
             } catch (e: Exception) {
                 Log.w(TAG, "dispatchBulk failed", e)
+            }
+        }
+
+        fun dispatchScript(context: Context, script: String, scriptId: Int = 1) {
+            try {
+                val intent = Intent(context, VipJamService::class.java).apply {
+                    action = ACTION_DISPATCH_SCRIPT
+                    putExtra(EXTRA_SCRIPT, script)
+                    putExtra(EXTRA_SCRIPT_ID, scriptId)
+                }
+                ContextCompat.startForegroundService(context, intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "dispatchScript failed", e)
             }
         }
 
