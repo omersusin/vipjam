@@ -59,7 +59,39 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
             prefs[namesKey] = names - name
             prefs.remove(bodyKey(name))
             prefs.remove(legacyBodyKey(name))
+            prefs[routeMapKey] = encodeRouteMap(
+                decodeRouteMap(prefs[routeMapKey].orEmpty()).filterValues { it != name },
+            )
+            prefs[deviceMapKey] = encodeDeviceMap(
+                decodeDeviceMap(prefs[deviceMapKey].orEmpty()).filterValues { it != name },
+            )
         }
+    }
+
+    suspend fun rename(oldName: String, newName: String): Result<Unit> = runCatching {
+        require(NAME_RE.matches(newName)) { "bad preset name" }
+        require(oldName != newName) { "same name" }
+        dataStore.edit { prefs ->
+            val names = try { prefs[namesKey].orEmpty() } catch (_: ClassCastException) { emptySet() }
+            require(oldName in names) { "preset not found" }
+            require(newName !in names) { "preset already exists" }
+            val body = prefs[bodyKey(oldName)] ?: prefs[legacyBodyKey(oldName)]
+                ?: throw IllegalStateException("preset body missing")
+            PresetImporter.parseV3(body).getOrThrow()
+            prefs[namesKey] = names - oldName + newName
+            prefs[bodyKey(newName)] = body
+            prefs.remove(bodyKey(oldName))
+            prefs.remove(legacyBodyKey(oldName))
+            prefs[routeMapKey] = encodeRouteMap(
+                decodeRouteMap(prefs[routeMapKey].orEmpty())
+                    .mapValues { (_, v) -> if (v == oldName) newName else v },
+            )
+            prefs[deviceMapKey] = encodeDeviceMap(
+                decodeDeviceMap(prefs[deviceMapKey].orEmpty())
+                    .mapValues { (_, v) -> if (v == oldName) newName else v },
+            )
+        }
+        Unit
     }
 
     val routePresetMap: Flow<Map<String, String>> = dataStore.data

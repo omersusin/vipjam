@@ -47,6 +47,24 @@ class AppProfileStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    suspend fun repointPreset(oldName: String, newName: String) {
+        if (oldName == newName) return
+        dataStore.edit { prefs ->
+            prefs[mapKey] = encodeAppMap(
+                decodeAppMap(prefs[mapKey].orEmpty())
+                    .mapValues { (_, v) -> if (v == oldName) newName else v },
+            )
+        }
+    }
+
+    suspend fun purgePreset(name: String) {
+        dataStore.edit { prefs ->
+            prefs[mapKey] = encodeAppMap(
+                decodeAppMap(prefs[mapKey].orEmpty()).filterValues { it != name },
+            )
+        }
+    }
+
     suspend fun setMonitorEnabled(enabled: Boolean) {
         dataStore.edit { prefs -> prefs[enabledKey] = enabled }
     }

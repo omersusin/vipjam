@@ -50,6 +50,7 @@ import kotlinx.coroutines.withContext
 private data class DriverProbe(
     val installed: Boolean,
     val versionCode: Int?,
+    val versionName: String?,
     val latencyMs: Long,
     val failWhy: String?,
     val liveParams: Map<Int, Int?>,
@@ -83,16 +84,19 @@ private suspend fun runDriverProbe(): DriverProbe = withContext(Dispatchers.IO) 
             return@withContext DriverProbe(
                 installed = false,
                 versionCode = null,
+                versionName = null,
                 latencyMs = SystemClock.elapsedRealtime() - start,
                 failWhy = "AudioEffect constructor failed (driver effect not present)",
                 liveParams = emptyMap(),
             )
         }
         val version = dispatcher.getParam(VipJamDispatcher.GET_VERSION_CODE)
+        val versionName = dispatcher.getStringParam(VipJamDispatcher.GET_VERSION_NAME)
         val live = LIVE_PROBE_IDS.associateWith { dispatcher.getParam(it) }
         DriverProbe(
             installed = true,
             versionCode = version,
+            versionName = versionName,
             latencyMs = SystemClock.elapsedRealtime() - start,
             failWhy = if (version == null) "driver reachable but version query returned no data" else null,
             liveParams = live,
@@ -164,6 +168,7 @@ fun StatusTab(store: PresetStore) {
         probe = probe?.copy(probing = true) ?: DriverProbe(
             installed = false,
             versionCode = null,
+            versionName = null,
             latencyMs = 0,
             failWhy = null,
             liveParams = emptyMap(),
@@ -199,7 +204,7 @@ fun StatusTab(store: PresetStore) {
         } else {
             appendLine("driver installed: ${currentProbe.installed}")
             appendLine("driver versionCode: ${currentProbe.versionCode ?: "unknown (${currentProbe.failWhy})"}")
-            appendLine("driver versionName: unknown (GET_VERSION_NAME returns raw bytes; getParam only decodes int)")
+            appendLine("driver versionName: ${currentProbe.versionName ?: "unknown"}")
             appendLine("probe latencyMs: ${currentProbe.latencyMs}")
             appendLine("device master(GET_ENABLED): ${onOffUnknown(liveMaster)}")
             appendLine("device configured(GET_CONFIGURED): ${onOffUnknown(liveConfigured)}")

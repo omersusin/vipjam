@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
+import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.service.VipJamService
@@ -49,6 +50,7 @@ import kotlinx.coroutines.withContext
 fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val appStore = remember { AppProfileStore(context.prefs) }
     val entries by store.entries.collectAsState(initial = null)
     val prefsData by context.prefs.data.collectAsState(initial = null)
     val activeName = prefsData?.get(VipJamPrefs.ACTIVE_PRESET)
@@ -257,16 +259,14 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                                 renameError = "a preset named \"$next\" already exists"
                                 return@launch
                             }
-                            val saved = store.save(PresetEntry(next, target.settingsJson))
+                            val saved = store.rename(target.name, next)
                             if (saved.isFailure) {
                                 renameError = saved.exceptionOrNull()?.message
                                 return@launch
                             }
-                            if (next != target.name) {
-                                store.delete(target.name)
-                                if (activeName == target.name) {
-                                    context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = next }
-                                }
+                            appStore.repointPreset(target.name, next)
+                            if (activeName == target.name) {
+                                context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = next }
                             }
                             renameTarget = null
                             message("Renamed to $next")
@@ -291,6 +291,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                         deleteTarget = null
                         scope.launch {
                             store.delete(target.name)
+                            appStore.purgePreset(target.name)
                             if (activeName == target.name) {
                                 context.prefs.edit { it.remove(VipJamPrefs.ACTIVE_PRESET) }
                             }

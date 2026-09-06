@@ -68,8 +68,8 @@ su -c vipjam-ctl version
 su -c vipjam-ctl help       # full subcommand list
 ```
 
-Note: there is no `vipjam-ctl diag` subcommand. `status` + `sessions`
-above are the diagnostics. Do not document or expect `diag`.
+`status` + `diag` above are the diagnostics. `diag` prints stable
+`KEY=value` lines for scripts; `status-json` is an alias.
 
 ## 4. Install the app, apply the Movie preset, toggle master
 

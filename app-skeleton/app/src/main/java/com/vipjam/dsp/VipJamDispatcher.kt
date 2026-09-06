@@ -92,6 +92,24 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         }
     }
 
+    fun getStringParam(id: Int): String? {
+        val fx = synchronized(lock) { effect } ?: return null
+        return try {
+            val m = AudioEffect::class.java.getMethod(
+                "getParameter", ByteArray::class.java, ByteArray::class.java,
+            )
+            val reply = ByteArray(256)
+            val status = m.invoke(fx, intBytes(id), reply) as Int
+            if (status < 0) return null
+            val end = reply.indexOfFirst { it == 0.toByte() }.let { if (it < 0) reply.size else it }
+            if (end == 0) return null
+            String(reply, 0, end, Charsets.UTF_8).trim().ifEmpty { null }
+        } catch (e: Exception) {
+            Log.w(TAG, "getParameter failed", e)
+            null
+        }
+    }
+
     private fun setBytes(param: ByteArray, value: ByteArray): Boolean {
         val fx = synchronized(lock) { effect }
         if (fx == null) {

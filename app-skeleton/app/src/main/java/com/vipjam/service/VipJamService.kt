@@ -31,6 +31,7 @@ import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamCommand
 import com.vipjam.dsp.VipJamCommandParser
 import com.vipjam.dsp.VipJamDispatcher
+import com.vipjam.root.RootShell
 import com.vipjam.ui.prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -96,6 +97,24 @@ class VipJamService : Service() {
         }
         registerDeviceCallback()
         registerCommandObserver()
+        mirrorRootProps()
+    }
+
+    private var rootMirrorOk: Boolean? = null
+
+    private fun mirrorRootProps() {
+        scope.launch {
+            applicationContext.prefs.data.collect { snap ->
+                val ok = rootMirrorOk ?: RootShell.hasSu().also { rootMirrorOk = it }
+                if (!ok) return@collect
+                val master = snap[VipJamPrefs.MASTER_ENABLE] ?: false
+                val profile = snap[VipJamPrefs.ACTIVE_PROFILE].orEmpty()
+                RootShell.capture("setprop persist.vipjam.master ${if (master) 1 else 0}", 5_000)
+                if (profile.isNotBlank()) {
+                    RootShell.capture("setprop persist.vipjam.profile $profile", 5_000)
+                }
+            }
+        }
     }
 
     private fun registerCommandObserver() {
