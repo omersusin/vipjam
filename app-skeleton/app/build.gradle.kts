@@ -57,6 +57,11 @@ android {
             path = file("../../vipjam_dsp/jni/Android.mk")
         }
     }
+    sourceSets {
+        getByName("test") {
+            resources.srcDir("src/main/assets")
+        }
+    }
 }
 
 dependencies {

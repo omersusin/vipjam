@@ -23,8 +23,9 @@ object EqCurveMath {
     }
 
     fun xNormToFreqHz(xNorm: Float): Float {
-        val x = xNorm.coerceIn(0f, 1f)
-        return exp(logMin + x * logSpan)
+        if (xNorm <= 0f) return MIN_FREQ_HZ
+        if (xNorm >= 1f) return MAX_FREQ_HZ
+        return exp(logMin + xNorm * logSpan)
     }
 
     fun dbToYNorm(db: Float): Float =

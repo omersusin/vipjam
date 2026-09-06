@@ -130,7 +130,7 @@ class PresetValidationEdgeTest {
         val json = """{"schemaVersion":3,"origin":"viper","name":"ü"}"""
         val link = PresetImporter.packLink(json)
         assertTrue(link.startsWith(PresetImporter.LINK_SCHEME))
-        assertTrue(!link.contains("="))
+        assertTrue(!link.removePrefix(PresetImporter.LINK_SCHEME).contains("="))
         assertEquals(json, PresetImporter.unpackLink(link).getOrThrow())
     }
 }
