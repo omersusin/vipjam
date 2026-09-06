@@ -23,7 +23,7 @@ import com.vipjam.ui.TabPage
 import com.vipjam.ui.theme.VipJamTheme
 
 @Composable
-fun DestinationGlyph(
+internal fun DestinationGlyph(
     destination: TabPage,
     contentDescription: String,
     tint: Color,

@@ -124,7 +124,7 @@ private fun AutoEqPreviewCurve(values: List<Double>) {
             )
         }
         for (i in 0 until points.size - 1) {
-            drawLine(points[i], points[i + 1], curveColor, strokeWidth = strokePx)
+            drawLine(curveColor, points[i], points[i + 1], strokeWidth = strokePx)
         }
         points.forEach { drawCircle(curveColor, radius = strokePx * 1.5f, center = it) }
     }
