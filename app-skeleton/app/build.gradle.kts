@@ -62,6 +62,9 @@ android {
             resources.srcDir("src/main/assets")
         }
     }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
