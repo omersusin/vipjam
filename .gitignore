@@ -21,3 +21,4 @@ upstream-rootlessjdsp/
 upstream-jdspmgr/
 upstream-jdsp4linux/
 upstream-audiomods/
+__pycache__/
