@@ -71,6 +71,14 @@ object PresetApplier {
             }.getOrDefault(false)
             en and param
         } and ok
+        ok = group(obj, VipJamEffects.MASTER_LIMITER) { g ->
+            runCatching {
+                sink.setParam(
+                    VipJamDispatcher.F_LIMITER,
+                    g.optInt("threshold", 100).coerceIn(0, 100),
+                )
+            }.getOrDefault(false)
+        } and ok
         ok = group(obj, VipJamEffects.CONVOLVER) { g ->
             runCatching {
                 sink.setParam(VipJamDispatcher.P_CONV_ENABLE, if (g.optBoolean("enable")) 1 else 0)
@@ -99,6 +107,13 @@ object PresetApplier {
                             g.optInt("drive", 0).coerceIn(0, 100),
                         )
                     }.getOrDefault(false)
+                } else if (name == VipJamEffects.CURE) {
+                    runCatching {
+                        sink.setParam(
+                            VipJamDispatcher.F_XFEED,
+                            g.optInt("crossfeedPreset", 0).coerceIn(0, 5),
+                        )
+                    }.getOrDefault(false)
                 } else {
                     true
                 }
@@ -121,6 +136,14 @@ object PresetApplier {
             VipJamEffects.TUBE -> {
                 require(field == "drive") { "unknown field: $group.$field" }
                 obj.getJSONObject(group).put("drive", value.roundToInt().coerceIn(0, 100))
+            }
+            VipJamEffects.MASTER_LIMITER -> {
+                require(field == "threshold") { "unknown field: $group.$field" }
+                obj.getJSONObject(group).put("threshold", value.roundToInt().coerceIn(0, 100))
+            }
+            VipJamEffects.CURE -> {
+                require(field == "crossfeedPreset") { "unknown field: $group.$field" }
+                obj.getJSONObject(group).put("crossfeedPreset", value.roundToInt().coerceIn(0, 5))
             }
             VipJamEffects.REVERB -> {
                 require(field in REVERB_FIELDS) { "unknown field: $group.$field" }
@@ -147,6 +170,8 @@ object PresetApplier {
         VipJamEffects.REVERB,
         VipJamEffects.EQ,
         VipJamEffects.TUBE,
+        VipJamEffects.MASTER_LIMITER,
+        VipJamEffects.CURE,
     )
 
     private val REVERB_FIELDS = setOf("roomSize", "width", "damp")
@@ -192,10 +217,10 @@ object PresetApplier {
         VipJamEffects.EQ,
         VipJamEffects.REVERB,
         VipJamEffects.CONVOLVER,
+        VipJamEffects.MASTER_LIMITER,
     )
 
     private val PASS_THROUGH_GROUPS = setOf(
-        VipJamEffects.MASTER_LIMITER,
         VipJamEffects.PLAYBACK_GAIN,
         VipJamEffects.LUFS,
         VipJamEffects.FET,

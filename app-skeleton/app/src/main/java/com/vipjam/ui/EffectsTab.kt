@@ -86,6 +86,10 @@ internal fun liveParam(settingsJson: String, group: String, field: String): Live
         }
         VipJamEffects.TUBE ->
             LiveParam(VipJamDispatcher.F_TUBE, g.optInt("drive", 0).coerceIn(0, 100), 0, 0)
+        VipJamEffects.MASTER_LIMITER ->
+            LiveParam(VipJamDispatcher.F_LIMITER, g.optInt("threshold", 100).coerceIn(0, 100), 0, 0)
+        VipJamEffects.CURE ->
+            LiveParam(VipJamDispatcher.F_XFEED, g.optInt("crossfeedPreset", 0).coerceIn(0, 5), 0, 0)
         else -> null
     }
 }
@@ -182,6 +186,8 @@ internal fun groupStatusLine(group: String, settingsJson: String): String {
         VipJamEffects.CLARITY -> "Gain ${g.optInt("gain", 50)}"
         VipJamEffects.REVERB -> "Room ${g.optInt("roomSize", 0)} · Width ${g.optInt("width", 0)}"
         VipJamEffects.TUBE -> "Drive ${g.optInt("drive", 0)}%"
+        VipJamEffects.MASTER_LIMITER -> "Ceiling ${g.optInt("threshold", 100)}%"
+        VipJamEffects.CURE -> "Mode ${g.optInt("crossfeedPreset", 0)}"
         VipJamEffects.CONVOLVER -> "Impulse active"
         VipJamEffects.DDC -> "Correction active"
         else -> groupBlurb(group)
@@ -231,6 +237,12 @@ internal fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when
     )
     VipJamEffects.TUBE -> listOf(
         SliderSpec("drive", "Drive", 0f..100f, 0f, ::percentFormat),
+    )
+    VipJamEffects.MASTER_LIMITER -> listOf(
+        SliderSpec("threshold", "Ceiling", 0f..100f, 100f, ::percentFormat),
+    )
+    VipJamEffects.CURE -> listOf(
+        SliderSpec("crossfeedPreset", "Mode", 0f..5f, 0f) { "${it.roundToInt()}" },
     )
     VipJamEffects.REVERB -> listOf(
         SliderSpec("roomSize", "Room size", 0f..100f, 0f, ::percentFormat),

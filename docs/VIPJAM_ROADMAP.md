@@ -638,21 +638,27 @@ inaudible; fixed, range to 24dB) applied from day one.
   (james-bond pattern); every implementation PR updates its HOW_TO.
 - **Faz 3** — AIDL driver + Pixel path + WebUI + kernel library + LiveProg IDE
   + AutoEq DB + link sharing + loudness + Movie/Game + Crowdin + F-Droid.
-  (done: WebUI polish, kernel fetch `tools/fetch_kernels.py` + manifest,
-  LiveProg mini-IDE tab, link codec, loudness compensator, Movie/Game
+  (done: WebUI shell (kernel upload/DDC editor/logs/reset pending),
+  kernel fetch `tools/fetch_kernels.py` + manifest,
+  LiveProg tab UI only (validate+queue, no engine wiring), link codec,
+  loudness compensator, Movie/Game
   presets, app preset import/store, tabbed app shell, JNI test-tone player,
-  app→driver dispatch + status probe, `vipjam-ctl` status/sessions/diagnostics,
-  HAL array protocol (EQ/DDC/IR), per-app profiles + mapping UI, AutoEq
-  subsystem + browser UI, per-device preset memory, Hi-Res addon
+  scalar app→driver dispatch + status probe (array/bulk send is DSP-only),
+  `vipjam-ctl` status/sessions/diagnostics,
+  HAL array protocol (EQ/DDC/IR, DSP side), per-app profiles + mapping UI,
+  AutoEq download + browser UI + public API search (no bundled index),
+  per-device preset memory, Hi-Res addon
   (`hires_unlock`), LoongFX presets, `aml.sh`, EQ curve editor UI,
   route-linked profiles, KSU-Next whitelist self-extract fix, installer
-  actually installs driver, AIDL track scaffold (`vipjam_dsp/hal-aidl/`,
+  actually installs driver, release APK in GitHub Releases (v0.1.0+),
+  AIDL track scaffold (`vipjam_dsp/hal-aidl/,
   UNCOMPILED skeleton per its README — still needs a Soong/AOSP build).
   REMAINING: AIDL driver compile + Pixel path; kernel in-app pickers +
-  staging + DDC/IR push; LiveProg content → driver; AutoEq build-time
-  preset gen; Crowdin; F-Droid; update checker; `vipjam.log`; app root
-  ops — RootShell, kernel staging, SHM writer, AudioSessionMonitor,
-  output routing (all absent from `app-skeleton/` as of 2026-09-06);
+  staging + DDC/IR push; LiveProg content → driver; AutoEq bundled index +
+  446 DDC bundle (only hd600 demo ships); Crowdin; F-Droid; update checker;
+  `vipjam.log` + in-app viewer; app root ops — RootShell exists (basic su),
+  missing kernel staging/SHM writer/session monitor; output routing
+  partial (route/device maps exist, switch UX unhardened);
   reorderable chain UI (absent); Device/Settings sheets; dark toggle;
   ZH/RU; tablet layout.
   (verified 2026-09-06 against `git log` + file listing: struck EQ curve

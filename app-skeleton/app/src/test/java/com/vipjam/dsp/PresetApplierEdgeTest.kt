@@ -124,6 +124,105 @@ class PresetApplierEdgeTest {
     }
 
     @Test
+    fun `limiter threshold dispatches fused limiter`() {
+        val quads = mutableListOf<List<Int>>()
+        val sink = object : ParamSink {
+            override fun setParam(id: Int, v0: Int): Boolean {
+                quads += listOf(id, v0)
+                return true
+            }
+            override fun setParam(id: Int, v0: Int, v1: Int): Boolean = true
+            override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean = true
+        }
+        val json = """{"masterLimiter":{"threshold":80,"outputVolume":100,"channelPan":0}}"""
+        assertTrue(PresetApplier.apply(sink, json, true))
+        assertEquals(listOf(listOf(VipJamDispatcher.F_LIMITER, 80)), quads)
+    }
+
+    @Test
+    fun `limiter defaults to neutral ceiling`() {
+        var seen = -1
+        val sink = object : ParamSink {
+            override fun setParam(id: Int, v0: Int): Boolean {
+                if (id == VipJamDispatcher.F_LIMITER) seen = v0
+                return true
+            }
+            override fun setParam(id: Int, v0: Int, v1: Int): Boolean = true
+            override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean = true
+        }
+        assertTrue(PresetApplier.apply(sink, """{"masterLimiter":{}}""", true))
+        assertEquals(100, seen)
+    }
+
+    @Test
+    fun `cure crossfeed preset dispatches xfeed mode`() {
+        val pairs = mutableListOf<Pair<Int, Int>>()
+        val sink = object : ParamSink {
+            override fun setParam(id: Int, v0: Int): Boolean {
+                pairs += id to v0
+                return true
+            }
+            override fun setParam(id: Int, v0: Int, v1: Int): Boolean = true
+            override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean = true
+        }
+        val json = """{"cure":{"enable":true,"crossfeedPreset":3}}"""
+        assertTrue(PresetApplier.apply(sink, json, true))
+        assertTrue(pairs.contains(VipJamDispatcher.F_XFEED to 3))
+    }
+
+    @Test
+    fun `cure mode clamps to driver range`() {
+        var seen = -1
+        val sink = object : ParamSink {
+            override fun setParam(id: Int, v0: Int): Boolean {
+                if (id == VipJamDispatcher.F_XFEED) seen = v0
+                return true
+            }
+            override fun setParam(id: Int, v0: Int, v1: Int): Boolean = true
+            override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean = true
+        }
+        assertTrue(PresetApplier.apply(sink, """{"cure":{"enable":true,"crossfeedPreset":9}}""", true))
+        assertEquals(5, seen)
+    }
+
+    @Test
+    fun `limiter scalar round trip`() {
+        val updated = PresetApplier.withGroupScalar(
+            """{"masterLimiter":{"threshold":100}}""",
+            "masterLimiter",
+            "threshold",
+            80.0,
+        )
+        assertEquals(80, JSONObject(updated).getJSONObject("masterLimiter").getInt("threshold"))
+    }
+
+    @Test
+    fun `cure scalar round trip`() {
+        val updated = PresetApplier.withGroupScalar(
+            """{"cure":{"enable":true,"crossfeedPreset":0}}""",
+            "cure",
+            "crossfeedPreset",
+            4.0,
+        )
+        assertEquals(4, JSONObject(updated).getJSONObject("cure").getInt("crossfeedPreset"))
+    }
+
+    @Test
+    fun `limiter scalar rejects unknown field`() {
+        try {
+            PresetApplier.withGroupScalar(
+                """{"masterLimiter":{"threshold":100}}""",
+                "masterLimiter",
+                "gain",
+                1.0,
+            )
+            throw AssertionError("expected IllegalArgumentException")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message.orEmpty().contains("unknown field"))
+        }
+    }
+
+    @Test
     fun `intBytes is little endian`() {
         assertEquals(listOf<Byte>(1, 0, 0, 0), VipJamDispatcher.intBytes(1).toList())
         assertEquals(listOf<Byte>(0, 0, 0, 0), VipJamDispatcher.intBytes(0).toList())

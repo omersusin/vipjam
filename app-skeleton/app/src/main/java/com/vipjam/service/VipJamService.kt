@@ -615,6 +615,9 @@ class VipJamService : Service() {
             VipJamDispatcher.F_EQ,
             VipJamDispatcher.F_REVERB,
             VipJamDispatcher.F_CLARITY,
+            VipJamDispatcher.F_TUBE,
+            VipJamDispatcher.F_XFEED,
+            VipJamDispatcher.F_LIMITER,
         )
 
         fun start(context: Context, masterOn: Boolean) {
