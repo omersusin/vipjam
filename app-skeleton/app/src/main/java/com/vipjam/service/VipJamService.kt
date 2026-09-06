@@ -250,6 +250,13 @@ class VipJamService : Service() {
                 } catch (_: Exception) {
                 }
             }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<AudioDeviceInfo>) {
+                try {
+                    reevaluateRoute()
+                } catch (_: Exception) {
+                }
+            }
         }
         deviceCallback = callback
         try {
@@ -301,8 +308,69 @@ class VipJamService : Service() {
                         false
                     }
                     applyPreset(json, master)
+                    try {
+                        app.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = route }
+                    } catch (_: Exception) {
+                    }
                     return@launch
                 }
+                val fallback = devices.firstOrNull()?.let { routeOf(it) }
+                if (fallback != null) switchRoute(fallback)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun reevaluateRoute() {
+        scope.launch {
+            try {
+                val manager = audioManager ?: return@launch
+                val sinks = try {
+                    manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter { it.isSink }
+                } catch (_: Exception) {
+                    return@launch
+                }
+                val best = sinks.minByOrNull { routePriority(it) } ?: return@launch
+                switchRoute(routeOf(best))
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun routePriority(device: AudioDeviceInfo): Int {
+        return try {
+            when (device.type) {
+                AudioDeviceInfo.TYPE_WIRED_HEADSET,
+                AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> 0
+                AudioDeviceInfo.TYPE_USB_HEADSET,
+                AudioDeviceInfo.TYPE_USB_DEVICE -> 1
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+                AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> 2
+                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> 3
+                else -> 4
+            }
+        } catch (_: Exception) {
+            4
+        }
+    }
+
+    private fun switchRoute(route: String) {
+        scope.launch {
+            try {
+                if (route !in VipJamPrefs.Profiles.ALL) return@launch
+                val app = applicationContext
+                val current = try {
+                    app.prefs.data.first()[VipJamPrefs.ACTIVE_PROFILE]
+                } catch (_: Exception) {
+                    null
+                }
+                if (current == route) return@launch
+                try {
+                    app.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = route }
+                } catch (_: Exception) {
+                    return@launch
+                }
+                applyProfile(route)
             } catch (_: Exception) {
             }
         }
