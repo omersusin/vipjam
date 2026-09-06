@@ -389,6 +389,20 @@ class VipJamService : Service() {
                         }
                     }
                 }
+                ACTION_DISPATCH_BULK -> {
+                    val id = intent.getIntExtra(EXTRA_PARAM_ID, 0)
+                    val values = try {
+                        intent.getFloatArrayExtra(EXTRA_PARAM_VALUES)
+                    } catch (_: Exception) {
+                        null
+                    } ?: floatArrayOf()
+                    scope.launch {
+                        try {
+                            dispatchBulkNow(id, values)
+                        } catch (_: Exception) {
+                        }
+                    }
+                }
             }
         } catch (_: Exception) {
         }
@@ -509,6 +523,24 @@ class VipJamService : Service() {
         }
     }
 
+    private fun dispatchBulkNow(id: Int, values: FloatArray) {
+        try {
+            if (id !in KNOWN_PARAM_IDS || id in SINGLE_INT_PARAMS) {
+                Log.w(TAG, "dispatch bulk with unknown id skipped: $id")
+                return
+            }
+            val ok = synchronized(driverLock) {
+                if (!dispatcher.create()) {
+                    Log.w(TAG, "dispatch bulk: driver unavailable")
+                    return
+                }
+                dispatcher.sendFloatArray(id, values)
+            }
+            if (!ok) Log.w(TAG, "dispatch bulk failed: id=$id")
+        } catch (_: Exception) {
+        }
+    }
+
     private fun applyPreset(settingsJson: String, masterOn: Boolean) {
         if (settingsJson.isBlank()) {
             Log.w(TAG, "applyPreset with empty json skipped")
@@ -585,7 +617,9 @@ class VipJamService : Service() {
         const val CMD_KEY = "vipjam_cmd"
         const val CMD_SEQ_KEY = "vipjam_cmd_seq"
         const val ACTION_DISPATCH_PARAM = "com.vipjam.action.DISPATCH_PARAM"
+        const val ACTION_DISPATCH_BULK = "com.vipjam.action.DISPATCH_BULK"
         const val EXTRA_PARAM_ID = "param_id"
+        const val EXTRA_PARAM_VALUES = "param_values"
         const val EXTRA_PARAM_V0 = "param_v0"
         const val EXTRA_PARAM_V1 = "param_v1"
         const val EXTRA_PARAM_V2 = "param_v2"
@@ -618,6 +652,16 @@ class VipJamService : Service() {
             VipJamDispatcher.F_TUBE,
             VipJamDispatcher.F_XFEED,
             VipJamDispatcher.F_LIMITER,
+            VipJamDispatcher.EQ_LEVELS_CLASSIC,
+            VipJamDispatcher.EQ_LEVELS_NEW,
+            VipJamDispatcher.DDC_CLASSIC,
+            VipJamDispatcher.DDC_NEW,
+            VipJamDispatcher.CONV_PREP_CLASSIC,
+            VipJamDispatcher.CONV_PREP_NEW,
+            VipJamDispatcher.CONV_CHUNK_CLASSIC,
+            VipJamDispatcher.CONV_CHUNK_NEW,
+            VipJamDispatcher.CONV_COMMIT_CLASSIC,
+            VipJamDispatcher.CONV_COMMIT_NEW,
         )
 
         fun start(context: Context, masterOn: Boolean) {
@@ -656,6 +700,19 @@ class VipJamService : Service() {
                 ContextCompat.startForegroundService(context, intent)
             } catch (e: Exception) {
                 Log.w(TAG, "dispatchParam failed", e)
+            }
+        }
+
+        fun dispatchBulk(context: Context, id: Int, values: FloatArray) {
+            try {
+                val intent = Intent(context, VipJamService::class.java).apply {
+                    action = ACTION_DISPATCH_BULK
+                    putExtra(EXTRA_PARAM_ID, id)
+                    putExtra(EXTRA_PARAM_VALUES, values)
+                }
+                ContextCompat.startForegroundService(context, intent)
+            } catch (e: Exception) {
+                Log.w(TAG, "dispatchBulk failed", e)
             }
         }
 

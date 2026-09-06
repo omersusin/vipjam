@@ -73,6 +73,29 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
     override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean =
         setBytes(intBytes(id), intBytes(v0) + intBytes(v1) + intBytes(v2))
 
+    fun sendFloatArray(cmdId: Int, values: FloatArray): Boolean {
+        val payload = try {
+            buildBulkParam(cmdId, values)
+        } catch (e: Exception) {
+            Log.w(TAG, "sendFloatArray rejected", e)
+            return false
+        }
+        return setBytes(intBytes(cmdId), payload)
+    }
+
+    fun sendBulkChunks(chunkCmdId: Int, values: FloatArray, chunkSize: Int): Boolean {
+        val chunks = try {
+            chunkFloats(values, chunkSize)
+        } catch (e: Exception) {
+            Log.w(TAG, "sendBulkChunks rejected", e)
+            return false
+        }
+        for ((index, chunk) in chunks.withIndex()) {
+            if (!setBytes(intBytes(chunkCmdId), buildKernelChunk(index, chunk))) return false
+        }
+        return true
+    }
+
     fun getParam(id: Int): Int? {
         val fx = synchronized(lock) { effect } ?: return null
         return try {
@@ -158,6 +181,24 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         const val F_XFEED = 0x200C0
         const val F_LIMITER = 0x20010
 
+        const val EQ_LEVELS_CLASSIC = 65552
+        const val EQ_LEVELS_NEW = 0x101A3
+        const val DDC_CLASSIC = 65547
+        const val DDC_NEW = 0x101C1
+        const val CONV_PREP_CLASSIC = 65540
+        const val CONV_PREP_NEW = 0x101B2
+        const val CONV_CHUNK_CLASSIC = 65541
+        const val CONV_CHUNK_NEW = 0x101B3
+        const val CONV_COMMIT_CLASSIC = 65542
+        const val CONV_COMMIT_NEW = 0x101B4
+        const val KERNEL_CHUNK_BYTES = 8192
+        const val KERNEL_MAX_FLOATS_PER_CHUNK = 2046
+        const val KERNEL_MAX_TOTAL_FLOATS = 4194304
+        const val EQ_MAX_BANDS = 31
+        const val EQ_LEVELS_BYTES = 256
+        const val DDC_SMALL_BYTES = 256
+        const val DDC_LARGE_BYTES = 1024
+
         const val GET_ENABLED = 1
         const val GET_CONFIGURED = 2
         const val GET_VERSION_CODE = 6
@@ -166,6 +207,100 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         fun intBytes(v: Int): ByteArray =
             ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
                 .putInt(v).array()
+
+        fun encodeFloatArrayLE(values: FloatArray): ByteArray {
+            val buf = ByteBuffer.allocate(values.size * 4).order(ByteOrder.LITTLE_ENDIAN)
+            for (v in values) buf.putFloat(v)
+            return buf.array()
+        }
+
+        fun encodeFloatArrayBE(values: FloatArray): ByteArray {
+            val buf = ByteBuffer.allocate(values.size * 4).order(ByteOrder.BIG_ENDIAN)
+            for (v in values) buf.putFloat(v)
+            return buf.array()
+        }
+
+        fun crc32IEEE(data: ByteArray): Int {
+            var crc = -1
+            for (b in data) {
+                crc = CRC_TABLE[(crc xor b.toInt()) and 0xFF] xor (crc ushr 8)
+            }
+            return crc xor -1
+        }
+
+        fun buildEqLevelsPayload(levels: FloatArray): ByteArray {
+            require(levels.isNotEmpty() && levels.size <= EQ_MAX_BANDS)
+            val out = ByteBuffer.allocate(EQ_LEVELS_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(levels.size)
+            for (v in levels) out.putFloat(v)
+            return out.array()
+        }
+
+        fun buildDdcPayload(c44: FloatArray, c48: FloatArray): ByteArray {
+            require(c44.isNotEmpty() && c44.size == c48.size)
+            val per = c44.size
+            val size = if (4 + per * 8 <= DDC_SMALL_BYTES) DDC_SMALL_BYTES else DDC_LARGE_BYTES
+            require(4 + per * 8 <= size)
+            val out = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(per)
+            for (v in c44) out.putFloat(v)
+            for (v in c48) out.putFloat(v)
+            return out.array()
+        }
+
+        fun buildBulkParam(cmdId: Int, values: FloatArray): ByteArray {
+            if (cmdId == EQ_LEVELS_CLASSIC || cmdId == EQ_LEVELS_NEW) {
+                return buildEqLevelsPayload(values)
+            }
+            if (cmdId == DDC_CLASSIC || cmdId == DDC_NEW) {
+                require(values.isNotEmpty() && values.size % 2 == 0)
+                val per = values.size / 2
+                return buildDdcPayload(values.sliceArray(0 until per), values.sliceArray(per until values.size))
+            }
+            throw IllegalArgumentException("unsupported bulk param: $cmdId")
+        }
+
+        fun buildKernelPrepare(totalFloats: Int, channels: Int, resetFlag: Int): ByteArray {
+            require(totalFloats > 0 && totalFloats <= KERNEL_MAX_TOTAL_FLOATS)
+            require(channels == 1 || channels == 2)
+            return ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(totalFloats).putInt(channels).putInt(resetFlag).array()
+        }
+
+        fun buildKernelCommit(totalFloats: Int, crc32: Int, kernelId: Int): ByteArray {
+            require(totalFloats > 0 && totalFloats <= KERNEL_MAX_TOTAL_FLOATS)
+            return ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(totalFloats).putInt(crc32).putInt(kernelId).array()
+        }
+
+        fun buildKernelChunk(index: Int, chunk: FloatArray): ByteArray {
+            require(index >= 0)
+            require(chunk.isNotEmpty() && chunk.size <= KERNEL_MAX_FLOATS_PER_CHUNK)
+            val out = ByteBuffer.allocate(KERNEL_CHUNK_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+            out.putInt(index)
+            out.putInt(chunk.size)
+            for (v in chunk) out.putFloat(v)
+            return out.array()
+        }
+
+        fun chunkFloats(values: FloatArray, chunkSize: Int): List<FloatArray> {
+            require(chunkSize in 1..KERNEL_MAX_FLOATS_PER_CHUNK)
+            require(values.isNotEmpty() && values.size <= KERNEL_MAX_TOTAL_FLOATS)
+            val out = ArrayList<FloatArray>((values.size + chunkSize - 1) / chunkSize)
+            var off = 0
+            while (off < values.size) {
+                val end = minOf(off + chunkSize, values.size)
+                out.add(values.sliceArray(off until end))
+                off = end
+            }
+            return out
+        }
+
+        private val CRC_TABLE: IntArray = IntArray(256) { i ->
+            var c = i
+            repeat(8) { c = if (c and 1 != 0) -306674912 xor (c ushr 1) else c ushr 1 }
+            c
+        }
 
         private operator fun ByteArray.plus(other: ByteArray): ByteArray {
             val out = ByteArray(size + other.size)
