@@ -24,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.vipjam.effect.VipJamEffects
 import kotlinx.coroutines.CoroutineScope
@@ -47,20 +48,28 @@ fun rememberDebouncedDispatcher(scope: CoroutineScope): (String, Long, suspend (
     }
 }
 
-internal fun parseEqBands(settingsJson: String): List<Double>? {
+internal fun parseEqBandsStored(settingsJson: String): List<Double>? {
     val eq = runCatching { JSONObject(settingsJson).optJSONObject(VipJamEffects.EQ) }.getOrNull()
         ?: return null
-    if (!eq.optBoolean("enable", false)) return null
     val bands = eq.optJSONArray("bands") ?: return null
     if (bands.length() == 0) return null
     return List(bands.length()) { bands.optDouble(it) }
 }
 
+internal fun parseEqBands(settingsJson: String): List<Double>? {
+    val enabled = runCatching {
+        JSONObject(settingsJson).optJSONObject(VipJamEffects.EQ)?.optBoolean("enable", false)
+    }.getOrNull() ?: return null
+    if (!enabled) return null
+    return parseEqBandsStored(settingsJson)
+}
+
 @Composable
-fun EqCurveEditorCard(
+fun ConsoleEqCurve(
     bands: List<Double>,
     onBandChange: (Int, Double) -> Unit,
     modifier: Modifier = Modifier,
+    canvasHeight: Dp = 160.dp
 ) {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
@@ -86,10 +95,8 @@ fun EqCurveEditorCard(
     val dotInnerSel = with(density) { 8.dp.toPx() }
     val labelGapPx = with(density) { 4.dp.toPx() }
 
-    fun bandCount() = bands.size
-
     fun pickBand(touchX: Float, widthPx: Float): Int {
-        val n = bandCount()
+        val n = bands.size
         if (n <= 0) return 0
         var best = EqCurveMath.nearestBand(touchX, widthPx, padLeftPx, padRightPx, n)
         var bestDist = Float.MAX_VALUE
@@ -111,128 +118,143 @@ fun EqCurveEditorCard(
         "$hz Hz " + (if (rounded >= 0) "+" else "") + rounded + " dB"
     } ?: "Drag a dot up or down to adjust that band"
 
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            selectedText,
+            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(canvasHeight)
+                .pointerInput(bands.size, padLeftPx, padRightPx, grabSlopPx) {
+                    detectTapGestures { offset ->
+                        val idx = pickBand(offset.x, size.width.toFloat())
+                        val db = EqCurveMath.clampDb(
+                            EqCurveMath.yToDb(
+                                offset.y, size.height.toFloat(),
+                                padTopPx, padBottomPx,
+                            ),
+                        )
+                        selected = idx
+                        onBandChange(idx, db.toDouble())
+                    }
+                }
+                .pointerInput(bands.size, padLeftPx, padRightPx, padTopPx, padBottomPx, grabSlopPx) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            selected = pickBand(offset.x, size.width.toFloat())
+                        },
+                        onDragEnd = { selected = null },
+                        onDragCancel = { selected = null },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val idx = selected ?: return@detectDragGestures
+                            val db = EqCurveMath.clampDb(
+                                EqCurveMath.yToDb(
+                                    change.position.y, size.height.toFloat(),
+                                    padTopPx, padBottomPx,
+                                ),
+                            )
+                            onBandChange(idx, db.toDouble())
+                        },
+                    )
+                },
+        ) {
+            val w = size.width
+            val h = size.height
+            val dbSteps = listOf(12f, 6f, 0f, -6f, -12f)
+            for (db in dbSteps) {
+                val y = EqCurveMath.dbToY(db, h, padTopPx, padBottomPx)
+                drawLine(
+                    if (db == 0f) zeroColor else gridColor,
+                    Offset(padLeftPx, y),
+                    Offset(w - padRightPx, y),
+                )
+                val label = (if (db > 0f) "+" else "") + db.roundToInt().toString()
+                val layout = textMeasurer.measure(label, labelStyle)
+                drawText(
+                    layout,
+                    topLeft = Offset(0f, y - layout.size.height / 2f),
+                )
+            }
+            val n = bands.size
+            for (i in 0 until n) {
+                val x = EqCurveMath.freqToX(
+                    EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx,
+                )
+                drawLine(
+                    gridColor,
+                    Offset(x, padTopPx),
+                    Offset(x, h - padBottomPx),
+                )
+            }
+            val points = bands.mapIndexed { i, db ->
+                Offset(
+                    EqCurveMath.freqToX(EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx),
+                    EqCurveMath.dbToY(db.toFloat(), h, padTopPx, padBottomPx),
+                )
+            }
+            if (points.size > 1) {
+                val zeroY = EqCurveMath.dbToY(0f, h, padTopPx, padBottomPx)
+                val fill = Path().apply {
+                    addPath(smoothPathThrough(points))
+                    lineTo(points.last().x, zeroY)
+                    lineTo(points.first().x, zeroY)
+                    close()
+                }
+                drawPath(fill, fillColor)
+            }
+            drawPath(smoothPathThrough(points), curveColor, style = Stroke(width = strokePx))
+            points.forEachIndexed { i, p ->
+                val isSel = i == selected
+                drawCircle(
+                    dotFill,
+                    radius = if (isSel) dotOuterSel else dotOuter,
+                    center = p,
+                )
+                drawCircle(
+                    dotCore,
+                    radius = if (isSel) dotInnerSel else dotInner,
+                    center = p,
+                )
+            }
+            for (i in 0 until n) {
+                val x = EqCurveMath.freqToX(
+                    EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx,
+                )
+                val label = EqCurveMath.shortFreqLabel(EqCurveMath.bandFreqHz(i))
+                val layout = textMeasurer.measure(label, labelStyle)
+                drawText(
+                    layout,
+                    topLeft = Offset(
+                        x - layout.size.width / 2f,
+                        h - padBottomPx + labelGapPx,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EqCurveEditorCard(
+    bands: List<Double>,
+    onBandChange: (Int, Double) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Card(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("EQ curve", style = MaterialTheme.typography.titleMedium)
-            Text(
-                selectedText,
-                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ConsoleEqCurve(
+                bands = bands,
+                onBandChange = onBandChange,
+                canvasHeight = 220.dp
             )
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .pointerInput(bands.size, padLeftPx, padRightPx, grabSlopPx) {
-                        detectTapGestures { offset ->
-                            val idx = pickBand(offset.x, size.width.toFloat())
-                            val db = EqCurveMath.clampDb(
-                                EqCurveMath.yToDb(
-                                    offset.y, size.height.toFloat(),
-                                    padTopPx, padBottomPx,
-                                ),
-                            )
-                            selected = idx
-                            onBandChange(idx, db.toDouble())
-                        }
-                    }
-                    .pointerInput(bands.size, padLeftPx, padRightPx, padTopPx, padBottomPx, grabSlopPx) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                selected = pickBand(offset.x, size.width.toFloat())
-                            },
-                            onDragEnd = { selected = null },
-                            onDragCancel = { selected = null },
-                            onDrag = { change, _ ->
-                                change.consume()
-                                val idx = selected ?: return@detectDragGestures
-                                val db = EqCurveMath.clampDb(
-                                    EqCurveMath.yToDb(
-                                        change.position.y, size.height.toFloat(),
-                                        padTopPx, padBottomPx,
-                                    ),
-                                )
-                                onBandChange(idx, db.toDouble())
-                            },
-                        )
-                    },
-            ) {
-                val w = size.width
-                val h = size.height
-                val dbSteps = listOf(12f, 6f, 0f, -6f, -12f)
-                for (db in dbSteps) {
-                    val y = EqCurveMath.dbToY(db, h, padTopPx, padBottomPx)
-                    drawLine(
-                        if (db == 0f) zeroColor else gridColor,
-                        Offset(padLeftPx, y),
-                        Offset(w - padRightPx, y),
-                    )
-                    val label = (if (db > 0f) "+" else "") + db.roundToInt().toString()
-                    val layout = textMeasurer.measure(label, labelStyle)
-                    drawText(
-                        layout,
-                        topLeft = Offset(0f, y - layout.size.height / 2f),
-                    )
-                }
-                val n = bands.size
-                for (i in 0 until n) {
-                    val x = EqCurveMath.freqToX(
-                        EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx,
-                    )
-                    drawLine(
-                        gridColor,
-                        Offset(x, padTopPx),
-                        Offset(x, h - padBottomPx),
-                    )
-                }
-                val points = bands.mapIndexed { i, db ->
-                    Offset(
-                        EqCurveMath.freqToX(EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx),
-                        EqCurveMath.dbToY(db.toFloat(), h, padTopPx, padBottomPx),
-                    )
-                }
-                if (points.size > 1) {
-                    val zeroY = EqCurveMath.dbToY(0f, h, padTopPx, padBottomPx)
-                    val fill = Path().apply {
-                        addPath(smoothPathThrough(points))
-                        lineTo(points.last().x, zeroY)
-                        lineTo(points.first().x, zeroY)
-                        close()
-                    }
-                    drawPath(fill, fillColor)
-                }
-                drawPath(smoothPathThrough(points), curveColor, style = Stroke(width = strokePx))
-                points.forEachIndexed { i, p ->
-                    val isSel = i == selected
-                    drawCircle(
-                        dotFill,
-                        radius = if (isSel) dotOuterSel else dotOuter,
-                        center = p,
-                    )
-                    drawCircle(
-                        dotCore,
-                        radius = if (isSel) dotInnerSel else dotInner,
-                        center = p,
-                    )
-                }
-                for (i in 0 until n) {
-                    val x = EqCurveMath.freqToX(
-                        EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx,
-                    )
-                    val label = EqCurveMath.shortFreqLabel(EqCurveMath.bandFreqHz(i))
-                    val layout = textMeasurer.measure(label, labelStyle)
-                    drawText(
-                        layout,
-                        topLeft = Offset(
-                            x - layout.size.width / 2f,
-                            h - padBottomPx + labelGapPx,
-                        ),
-                    )
-                }
-            }
         }
     }
 }

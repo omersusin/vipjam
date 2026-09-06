@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -37,7 +38,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
@@ -58,6 +61,7 @@ import kotlinx.coroutines.withContext
 fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
     val appStore = remember { AppProfileStore(context.prefs) }
     val entries by store.entries.collectAsState(initial = null)
     val prefsData by context.prefs.data.collectAsState(initial = null)
@@ -77,6 +81,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     }
 
     fun applyEntry(entry: PresetEntry, all: List<PresetEntry>) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch {
             val prefs = context.prefs.data.first()
             val master = prefs[VipJamPrefs.MASTER_ENABLE] ?: false
@@ -227,10 +232,14 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                     }
                 },
                 enabled = link.isNotBlank(),
+                modifier = Modifier.heightIn(min = 48.dp),
             ) {
                 Text("Import link")
             }
-            OutlinedButton(onClick = { picker.launch("application/json") }) {
+            OutlinedButton(
+                onClick = { picker.launch("application/json") },
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
                 Text("Import file")
             }
         }
@@ -257,6 +266,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 }
             },
             enabled = paste.isNotBlank(),
+            modifier = Modifier.heightIn(min = 48.dp),
         ) {
             Text("Import pasted JSON")
         }
@@ -371,10 +381,22 @@ fun PresetRow(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onApply) { Text("Apply") }
-            OutlinedButton(onClick = onRename) { Text("Rename") }
-            OutlinedButton(onClick = onShare) { Text("Share") }
-            OutlinedButton(onClick = onDelete) { Text("Delete") }
+            Button(
+                onClick = onApply,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text("Apply") }
+            OutlinedButton(
+                onClick = onRename,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text("Rename") }
+            OutlinedButton(
+                onClick = onShare,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text("Share") }
+            OutlinedButton(
+                onClick = onDelete,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) { Text("Delete") }
         }
     }
 }

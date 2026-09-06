@@ -1,20 +1,26 @@
 package com.vipjam.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,8 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetImporter
 import com.vipjam.data.PresetStore
@@ -38,19 +44,21 @@ import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.service.VipJamService
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import com.vipjam.ui.components.DebouncedSliderRow
+import com.vipjam.ui.components.PopSwitch
+import com.vipjam.ui.components.PowerDot
+import com.vipjam.ui.components.StripChevron
+import com.vipjam.ui.components.chainAnimateSpec
+import com.vipjam.ui.components.consoleStaggerDelay
+import com.vipjam.ui.components.rememberReducedMotion
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
-private data class LiveParam(val id: Int, val v0: Int, val v1: Int, val v2: Int)
+internal data class LiveParam(val id: Int, val v0: Int, val v1: Int, val v2: Int)
 
-private fun liveParam(settingsJson: String, group: String, field: String): LiveParam? {
+internal fun liveParam(settingsJson: String, group: String, field: String): LiveParam? {
     val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return null
     val g = obj.optJSONObject(group) ?: return null
     return when (group) {
@@ -82,7 +90,7 @@ private fun liveParam(settingsJson: String, group: String, field: String): LiveP
     }
 }
 
-private fun groupEnableParam(group: String): Int? = when (group) {
+internal fun groupEnableParam(group: String): Int? = when (group) {
     VipJamEffects.BASS -> VipJamDispatcher.P_BASS_ENABLE
     VipJamEffects.CLARITY -> VipJamDispatcher.P_CLARITY_ENABLE
     VipJamEffects.EQ -> VipJamDispatcher.P_EQ_ENABLE
@@ -101,84 +109,105 @@ private fun groupEnableParam(group: String): Int? = when (group) {
     else -> null
 }
 
-private val GROUP_ORDER = listOf(
-    VipJamEffects.BASS,
-    VipJamEffects.CLARITY,
-    VipJamEffects.REVERB,
-    VipJamEffects.FIELD,
-    VipJamEffects.DIFF,
-    VipJamEffects.STEREO_IMG,
-    VipJamEffects.HSURR,
-    VipJamEffects.FET,
-    VipJamEffects.MBC,
-    VipJamEffects.DYN_SYS,
-    VipJamEffects.DYN_EQ,
-    VipJamEffects.MASTER_LIMITER,
-    VipJamEffects.PLAYBACK_GAIN,
-    VipJamEffects.LUFS,
-    VipJamEffects.CONVOLVER,
-    VipJamEffects.SPECTRUM,
-    VipJamEffects.DDC,
-    VipJamEffects.CURE,
-    VipJamEffects.TUBE,
-    VipJamEffects.ANALOGX,
-    VipJamEffects.SPEAKER,
-    VipJamEffects.LOUDNESS,
-    VipJamEffects.BASS_MONO,
-    VipJamEffects.PSYCHO_BASS,
-    VipJamEffects.LIVEPROG,
+internal data class ChainStrip(
+    val key: String,
+    val title: String,
+    val groups: List<String>
 )
 
-private fun orderIndex(group: String): Int {
-    val i = GROUP_ORDER.indexOf(group)
-    return if (i < 0) Int.MAX_VALUE else i
-}
+internal val CHAIN_STRIPS = listOf(
+    ChainStrip("bass", "Bass", listOf(VipJamEffects.BASS)),
+    ChainStrip("clarity", "Clarity", listOf(VipJamEffects.CLARITY)),
+    ChainStrip("eq", "Equalizer", listOf(VipJamEffects.EQ)),
+    ChainStrip("reverb", "Reverb", listOf(VipJamEffects.REVERB)),
+    ChainStrip("conv", "Convolver", listOf(VipJamEffects.CONVOLVER)),
+    ChainStrip("tube", "Tube", listOf(VipJamEffects.TUBE)),
+    ChainStrip("dyn", "Dynamics", listOf(VipJamEffects.FET, VipJamEffects.DYN_SYS, VipJamEffects.MASTER_LIMITER)),
+    ChainStrip("spatial", "Spatial", listOf(VipJamEffects.FIELD, VipJamEffects.DIFF, VipJamEffects.STEREO_IMG, VipJamEffects.HSURR)),
+    ChainStrip("ddc", "Device Correction", listOf(VipJamEffects.DDC)),
+    ChainStrip("pgc", "Playback Gain", listOf(VipJamEffects.PLAYBACK_GAIN)),
+    ChainStrip("cure", "Cure", listOf(VipJamEffects.CURE)),
+    ChainStrip("anx", "Analog", listOf(VipJamEffects.ANALOGX)),
+    ChainStrip("spk", "Speaker", listOf(VipJamEffects.SPEAKER)),
+)
 
-private fun groupTitle(group: String): String = when (group) {
+internal fun groupTitle(group: String): String = when (group) {
     VipJamEffects.BASS -> "Bass"
     VipJamEffects.CLARITY -> "Clarity"
     VipJamEffects.EQ -> "Equalizer"
     VipJamEffects.REVERB -> "Reverb"
-    VipJamEffects.MASTER_LIMITER -> "Limiter"
-    VipJamEffects.FET -> "Dynamics"
-    VipJamEffects.MBC -> "Multiband Dynamics"
+    VipJamEffects.CONVOLVER -> "Convolver"
+    VipJamEffects.TUBE -> "Tube"
+    VipJamEffects.FET -> "FET Compressor"
     VipJamEffects.DYN_SYS -> "Dynamic System"
-    VipJamEffects.DYN_EQ -> "Dynamic EQ"
-    VipJamEffects.FIELD -> "Spatial"
-    VipJamEffects.DIFF -> "Spatial Diffuse"
+    VipJamEffects.MASTER_LIMITER -> "Limiter"
+    VipJamEffects.FIELD -> "Field Surround"
+    VipJamEffects.DIFF -> "Diffuse Surround"
     VipJamEffects.STEREO_IMG -> "Stereo Width"
     VipJamEffects.HSURR -> "Headphone Spatial"
-    VipJamEffects.CONVOLVER -> "Convolver"
-    VipJamEffects.PLAYBACK_GAIN -> "Playback Gain"
-    VipJamEffects.LUFS -> "Loudness Level"
-    VipJamEffects.SPECTRUM -> "Spectrum Extension"
     VipJamEffects.DDC -> "Device Correction"
+    VipJamEffects.PLAYBACK_GAIN -> "Playback Gain"
     VipJamEffects.CURE -> "Cure"
-    VipJamEffects.TUBE -> "Tube"
     VipJamEffects.ANALOGX -> "Analog"
-    VipJamEffects.SPEAKER -> "Speaker Correction"
-    VipJamEffects.LOUDNESS -> "Loudness"
-    VipJamEffects.BASS_MONO -> "Bass Mono"
-    VipJamEffects.PSYCHO_BASS -> "Psychoacoustic Bass"
-    VipJamEffects.LIVEPROG -> "Live Programming"
+    VipJamEffects.SPEAKER -> "Speaker"
     else -> group.replaceFirstChar { it.uppercase() }
 }
 
-private fun groupBlurb(group: String): String = when (group) {
+internal fun groupBlurb(group: String): String = when (group) {
     VipJamEffects.BASS -> "Low-end weight and punch"
     VipJamEffects.CLARITY -> "Presence and detail"
     VipJamEffects.REVERB -> "Room size and space"
+    VipJamEffects.CONVOLVER -> "Impulse response"
+    VipJamEffects.TUBE -> "Warm saturation"
+    VipJamEffects.FET -> "Fast peak control"
+    VipJamEffects.DYN_SYS -> "Adaptive dynamics"
+    VipJamEffects.MASTER_LIMITER -> "Ceiling and safety"
     VipJamEffects.FIELD -> "Spatial width"
     VipJamEffects.DIFF -> "Diffuse spaciousness"
     VipJamEffects.STEREO_IMG -> "Stereo spread"
     VipJamEffects.HSURR -> "Virtual surround on headphones"
-    VipJamEffects.FET -> "Dynamics control"
-    VipJamEffects.MBC -> "Per-band dynamics"
-    VipJamEffects.MASTER_LIMITER -> "Ceiling and safety"
+    VipJamEffects.DDC -> "Headphone correction"
+    VipJamEffects.PLAYBACK_GAIN -> "Output trim"
+    VipJamEffects.CURE -> "High-frequency ease"
+    VipJamEffects.ANALOGX -> "Console warmth"
+    VipJamEffects.SPEAKER -> "Driver correction"
     else -> "Stored in preset"
 }
 
-private data class SliderSpec(
+internal fun groupStatusLine(group: String, settingsJson: String): String {
+    val g = runCatching { JSONObject(settingsJson).optJSONObject(group) }.getOrNull()
+        ?: return groupBlurb(group)
+    return when (group) {
+        VipJamEffects.BASS -> "Gain ${g.optInt("gain", 50)}"
+        VipJamEffects.CLARITY -> "Gain ${g.optInt("gain", 50)}"
+        VipJamEffects.REVERB -> "Room ${g.optInt("roomSize", 0)} · Width ${g.optInt("width", 0)}"
+        VipJamEffects.TUBE -> "Drive ${g.optInt("drive", 0)}%"
+        VipJamEffects.CONVOLVER -> "Impulse active"
+        VipJamEffects.DDC -> "Correction active"
+        else -> groupBlurb(group)
+    }
+}
+
+internal fun stripSummary(strip: ChainStrip, enables: Map<String, Boolean>, settingsJson: String?): String {
+    if (settingsJson == null) return "Apply a preset to tune"
+    if (strip.groups.size == 1) {
+        val group = strip.groups.first()
+        if (enables[group] != true) return "Off"
+        if (group == VipJamEffects.EQ) {
+            val n = parseEqBandsStored(settingsJson)?.size ?: return "On"
+            return "$n bands"
+        }
+        return groupStatusLine(group, settingsJson)
+    }
+    val on = strip.groups.count { enables[it] == true }
+    if (strip.key == "dyn") {
+        fun flag(g: String) = if (enables[g] == true) "On" else "Off"
+        return "FET ${flag(VipJamEffects.FET)} · Sys ${flag(VipJamEffects.DYN_SYS)} · Lim ${flag(VipJamEffects.MASTER_LIMITER)}"
+    }
+    return "$on of ${strip.groups.size} on"
+}
+
+internal data class SliderSpec(
     val field: String,
     val label: String,
     val range: ClosedFloatingPointRange<Float>,
@@ -186,14 +215,14 @@ private data class SliderSpec(
     val format: (Float) -> String,
 )
 
-private fun percentFormat(v: Float): String = "${v.roundToInt()}%"
+internal fun percentFormat(v: Float): String = "${v.roundToInt()}%"
 
-private fun dbFormat(v: Float): String {
+internal fun dbFormat(v: Float): String {
     val rounded = (v * 10).roundToInt() / 10.0
     return (if (rounded >= 0) "+" else "") + rounded + " dB"
 }
 
-private fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when (group) {
+internal fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when (group) {
     VipJamEffects.BASS -> listOf(
         SliderSpec("gain", "Gain", 50f..1000f, 50f) { "${it.roundToInt()}" },
     )
@@ -224,7 +253,7 @@ private fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when 
     else -> null
 }
 
-private fun specValue(group: String, spec: SliderSpec, settingsJson: String): Float {
+internal fun specValue(group: String, spec: SliderSpec, settingsJson: String): Float {
     val g = runCatching { JSONObject(settingsJson).optJSONObject(group) }.getOrNull()
         ?: return spec.defaultValue
     return if (group == VipJamEffects.EQ) {
@@ -239,86 +268,30 @@ private fun specValue(group: String, spec: SliderSpec, settingsJson: String): Fl
 }
 
 @Composable
-fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
+fun ConsoleChainSection(
+    store: PresetStore,
+    snackbar: SnackbarHostState,
+    staggerBase: Int = 0
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val debounce = rememberDebouncedDispatcher(scope)
-    val masterOn by context.prefs.data
-        .map { it[VipJamPrefs.MASTER_ENABLE] ?: false }
-        .collectAsState(initial = false)
-    val profile by context.prefs.data
-        .map { it[VipJamPrefs.ACTIVE_PROFILE] ?: VipJamPrefs.Profiles.HEADSET }
-        .collectAsState(initial = VipJamPrefs.Profiles.HEADSET)
-    val activeName by context.prefs.data
-        .map { it[VipJamPrefs.ACTIVE_PRESET] }
-        .collectAsState(initial = null)
-    var loadedEntries by remember { mutableStateOf<List<PresetEntry>?>(null) }
-    LaunchedEffect(store) {
-        store.entries.collect { loadedEntries = it }
+    val reducedMotion = rememberReducedMotion()
+    var entered by remember { mutableStateOf(reducedMotion) }
+    LaunchedEffect(Unit) { entered = true }
+    val entries by store.entries.collectAsState(initial = null)
+    val prefsData by context.prefs.data.collectAsState(initial = null)
+    val resolvedName: String? = prefsData?.get(VipJamPrefs.ACTIVE_PRESET)
+    val list = entries
+    val active: PresetEntry? = list?.let { all ->
+        all.find { it.name == resolvedName } ?: all.firstOrNull()
     }
-    var driverText by remember { mutableStateOf("probing…") }
-    var driverOk by remember { mutableStateOf(false) }
-    var driverProbing by remember { mutableStateOf(true) }
-    var probeNonce by remember { mutableStateOf(0) }
-    LaunchedEffect(probeNonce) {
-        driverProbing = true
-        val outcome: Pair<Boolean, String> = withContext(Dispatchers.IO) {
-            val d = VipJamDispatcher(0)
-            try {
-                if (!d.create()) {
-                    false to "not installed"
-                } else {
-                    val v = d.getParam(VipJamDispatcher.GET_VERSION_CODE)
-                    if (v == null) false to "unreachable" else true to "connected v$v"
-                }
-            } finally {
-                d.release()
-            }
-        }
-        driverOk = outcome.first
-        driverText = outcome.second
-        driverProbing = false
+    val enables = remember(active?.settingsJson) {
+        active?.let {
+            runCatching { PresetImporter.groupEnables(it.settingsJson).toMap() }.getOrNull()
+        }.orEmpty()
     }
-    val entries = loadedEntries
-    val active: PresetEntry? = entries?.let { list ->
-        list.find { it.name == activeName } ?: list.firstOrNull()
-    }
-    val groups: List<Pair<String, Boolean>> = active?.let {
-        runCatching { PresetImporter.groupEnables(it.settingsJson) }.getOrDefault(emptyList())
-    }.orEmpty()
-    val orderedGroups = groups
-        .filter { it.first != VipJamEffects.EQ }
-        .sortedWith(compareBy({ orderIndex(it.first) }, { it.first }))
-    val eqEnabled = groups.firstOrNull { it.first == VipJamEffects.EQ }?.second
-    val eqBands = remember(active?.settingsJson) {
-        active?.settingsJson?.let { parseEqBands(it) }
-    }
-
-    fun persistMaster(on: Boolean) {
-        scope.launch {
-            runCatching {
-                context.prefs.edit { it[VipJamPrefs.MASTER_ENABLE] = on }
-                VipJamService.start(context, on)
-            }.onSuccess {
-                launch { snackbar.showSnackbar(if (on) "Master on" else "Master off") }
-            }.onFailure {
-                launch { snackbar.showSnackbar("Master failed: ${it.message}") }
-            }
-        }
-    }
-
-    fun persistProfile(next: String) {
-        scope.launch {
-            runCatching {
-                context.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = next }
-                VipJamService.setProfile(context, next)
-            }.onSuccess {
-                launch { snackbar.showSnackbar("Profile: $next") }
-            }.onFailure {
-                launch { snackbar.showSnackbar("Profile failed: ${it.message}") }
-            }
-        }
-    }
+    var expanded by remember { mutableStateOf(setOf(VipJamEffects.EQ)) }
 
     fun flipGroup(group: String, on: Boolean) {
         val current = active ?: return
@@ -372,7 +345,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
 
     fun flattenEq() {
         val current = active ?: return
-        val count = eqBands?.size ?: return
+        val count = parseEqBandsStored(current.settingsJson)?.size ?: return
         scope.launch {
             val latest = try {
                 store.entries.first().find { it.name == current.name }?.settingsJson
@@ -398,339 +371,238 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item(key = "hero") {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Master", style = MaterialTheme.typography.headlineSmall)
-                            val status = if (driverProbing) {
-                                "Driver probing…"
-                            } else {
-                                "Driver $driverText"
-                            }
-                            Text(
-                                status,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (!driverProbing && driverOk) {
-                                    MaterialTheme.colorScheme.primary
-                                } else if (!driverProbing) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                            if (!masterOn && !driverProbing && driverOk) {
-                                Text(
-                                    "Bypassed — enable to hear effects",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
+    if (active == null) {
+        Text(
+            "No preset loaded",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+
+    CHAIN_STRIPS.forEachIndexed { index, strip ->
+        val stripBody: @Composable ColumnScope.() -> Unit = {
+            val stripOn = strip.groups.any { enables[it] == true }
+            val isOpen = strip.groups.any { expanded.contains(it) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PowerDot(on = stripOn)
+                if (strip.groups.size == 1) {
+                    val group = strip.groups.first()
+                    PopSwitch(
+                        checked = enables[group] == true,
+                        onToggle = { flipGroup(group, it) }
+                    )
+                } else {
+                    PopSwitch(
+                        checked = stripOn,
+                        onToggle = { next ->
+                            strip.groups.forEach { flipGroup(it, next) }
                         }
-                        Switch(checked = masterOn, onCheckedChange = ::persistMaster)
-                    }
-                    if (!driverProbing && !driverOk) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "Install the audio driver, then retry",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { probeNonce++ }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        item(key = "profile") {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text("Output profile", style = MaterialTheme.typography.titleMedium)
-                    VipJamPrefs.Profiles.ALL.forEach { option ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                option.replaceFirstChar { it.uppercase() },
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (option == profile) {
-                                Text(
-                                    "active",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            } else {
-                                OutlinedButton(onClick = { persistProfile(option) }) {
-                                    Text("Use")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        when {
-            entries == null -> {
-                item(key = "loading") {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            CircularProgressIndicator()
-                            Text(
-                                "Loading presets…",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    }
-                }
-            }
-            active == null -> {
-                item(key = "empty") {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text("No presets yet", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Import one in the Presets tab, then tune it here.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-            else -> {
-                item(key = "editing") {
-                    Text(
-                        "Editing: ${active.name}",
-                        style = MaterialTheme.typography.headlineSmall,
                     )
                 }
-                when {
-                    eqEnabled == true && eqBands != null -> {
-                        item(key = "eqcurve") {
-                            EqCurveEditorCard(
-                                bands = eqBands,
-                                onBandChange = { index, db ->
-                                    onScalar(VipJamEffects.EQ, index.toString(), db)
-                                },
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(role = Role.Button) {
+                            expanded = if (isOpen) {
+                                expanded - strip.groups.toSet()
+                            } else {
+                                expanded + strip.groups.first()
+                            }
+                        }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        strip.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        stripSummary(strip, enables, active.settingsJson),
+                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                StripChevron(expanded = isOpen)
+            }
+            AnimatedVisibility(
+                visible = isOpen,
+                enter = if (reducedMotion) fadeIn() else fadeIn(tween(240, easing = LinearOutSlowInEasing)),
+                exit = fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (strip.groups.size == 1) {
+                        SingleGroupBody(
+                            group = strip.groups.first(),
+                            settingsJson = active.settingsJson,
+                            onScalar = ::onScalar,
+                            onFlattenEq = ::flattenEq
+                        )
+                    } else {
+                        strip.groups.forEach { group ->
+                            SubToggleRow(
+                                group = group,
+                                on = enables[group] == true,
+                                hasActive = true,
+                                onToggle = { flipGroup(group, it) }
                             )
                         }
-                        item(key = "eqbands") {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "Bands",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            modifier = Modifier.weight(1f),
-                                        )
-                                        TextButton(onClick = ::flattenEq) {
-                                            Text("Flatten")
-                                        }
-                                    }
-                                    val eqObj = runCatching {
-                                        JSONObject(active.settingsJson)
-                                            .optJSONObject(VipJamEffects.EQ)
-                                    }.getOrNull()
-                                    val specs = eqObj?.let { sliderSpecs(VipJamEffects.EQ, it) }
-                                    if (specs.isNullOrEmpty()) {
-                                        Text(
-                                            "No band data in this preset",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    } else {
-                                        specs.forEach { spec ->
-                                            val v = specValue(
-                                                VipJamEffects.EQ,
-                                                spec,
-                                                active.settingsJson,
-                                            )
-                                            DebouncedSliderRow(
-                                                label = spec.label,
-                                                valueLabel = spec.format(v),
-                                                value = v,
-                                                range = spec.range,
-                                                onCommit = {
-                                                    onScalar(
-                                                        VipJamEffects.EQ,
-                                                        spec.field,
-                                                        it.toDouble(),
-                                                    )
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    eqEnabled == false -> {
-                        item(key = "eqoff") {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            "Equalizer",
-                                            style = MaterialTheme.typography.titleMedium,
-                                        )
-                                        Text(
-                                            "Turn it on to shape the 10-band curve",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    OutlinedButton(
-                                        onClick = { flipGroup(VipJamEffects.EQ, true) },
-                                    ) {
-                                        Text("Enable")
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
-                items(orderedGroups, key = { it.first }) { (group, on) ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        groupTitle(group),
-                                        style = MaterialTheme.typography.titleMedium,
-                                    )
-                                    Text(
-                                        groupBlurb(group),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                Switch(
-                                    checked = on,
-                                    onCheckedChange = { flipGroup(group, it) },
-                                )
-                            }
-                            if (on) {
-                                val parsed = runCatching {
-                                    JSONObject(active.settingsJson).optJSONObject(group)
-                                }.getOrNull()
-                                if (parsed == null) {
-                                    Text(
-                                        "Could not read settings for this effect",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error,
-                                    )
-                                } else {
-                                    val specs = sliderSpecs(group, parsed)
-                                    if (specs == null) {
-                                        if (groupEnableParam(group) == null) {
-                                            Text(
-                                                "No live switch for this stage yet — stored in preset",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    } else {
-                                        specs.forEach { spec ->
-                                            val v = specValue(
-                                                group,
-                                                spec,
-                                                active.settingsJson,
-                                            )
-                                            DebouncedSliderRow(
-                                                label = spec.label,
-                                                valueLabel = spec.format(v),
-                                                value = v,
-                                                range = spec.range,
-                                                onCommit = {
-                                                    onScalar(group, spec.field, it.toDouble())
-                                                },
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            }
+        }
+        if (reducedMotion) {
+            ChainStripShell(content = stripBody)
+        } else {
+            val delay = consoleStaggerDelay(staggerBase + index).toInt()
+            AnimatedVisibility(
+                visible = entered,
+                enter = fadeIn(tween(240, delay, LinearOutSlowInEasing)) +
+                    slideInVertically(tween(240, delay, LinearOutSlowInEasing)) { it / 4 },
+                exit = fadeOut()
+            ) {
+                ChainStripShell(content = stripBody)
             }
         }
     }
 }
 
 @Composable
-private fun DebouncedSliderRow(
-    label: String,
-    valueLabel: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    onCommit: (Float) -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    var local by remember(value) {
-        mutableStateOf(value.coerceIn(range.start, range.endInclusive))
+private fun ChainStripShell(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .animateContentSize(chainAnimateSpec())
+        ) {
+            content()
+        }
     }
-    var pending by remember { mutableStateOf<Job?>(null) }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+}
+
+@Composable
+private fun SubToggleRow(
+    group: String,
+    on: Boolean,
+    hasActive: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(enabled = hasActive, role = Role.Switch) { onToggle(!on) },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        PowerDot(on = on)
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+                groupTitle(group),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                valueLabel,
-                style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurface,
+                if (groupEnableParam(group) == null) "Stored in preset" else if (on) "On" else "Off",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Slider(
-            value = local.coerceIn(range.start, range.endInclusive),
-            onValueChange = {
-                local = it
-                pending?.cancel()
-                val v = it
-                pending = scope.launch {
-                    delay(120L)
-                    onCommit(v)
+        PopSwitch(checked = on, onToggle = onToggle, enabled = hasActive)
+    }
+}
+
+@Composable
+private fun SingleGroupBody(
+    group: String,
+    settingsJson: String,
+    onScalar: (String, String, Double) -> Unit,
+    onFlattenEq: () -> Unit
+) {
+    if (group == VipJamEffects.EQ) {
+        val bands = parseEqBandsStored(settingsJson)
+        if (bands == null) {
+            Text(
+                "No band data in this preset",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                "Edited on the curve above",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onFlattenEq,
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("Flatten")
                 }
-            },
-            valueRange = range,
+            }
+        }
+        return
+    }
+    val parsed = runCatching { JSONObject(settingsJson).optJSONObject(group) }.getOrNull()
+    if (parsed == null) {
+        Text(
+            "Could not read settings for this effect",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error
         )
+        return
+    }
+    val specs = sliderSpecs(group, parsed)
+    if (specs == null) {
+        if (groupEnableParam(group) == null) {
+            Text(
+                "No live switch for this stage yet — stored in preset",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
+    }
+    specs.forEach { spec ->
+        val v = specValue(group, spec, settingsJson)
+        DebouncedSliderRow(
+            label = spec.label,
+            value = v,
+            onValueChange = { onScalar(group, spec.field, it.toDouble()) },
+            valueRange = spec.range,
+            valueText = { spec.format(it) }
+        )
+    }
+}
+
+@Composable
+fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ConsoleChainSection(store = store, snackbar = snackbar, staggerBase = 0)
     }
 }

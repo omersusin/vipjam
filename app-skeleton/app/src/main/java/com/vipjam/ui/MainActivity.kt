@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,13 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,7 +32,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,11 +48,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -66,17 +61,14 @@ import com.vipjam.data.PresetSeeder
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
-import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.service.VipJamService
-import com.vipjam.ui.components.DestinationGlyph
+import com.vipjam.ui.components.PopSwitch
 import com.vipjam.ui.components.SectionCard
 import com.vipjam.ui.theme.VipJamTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 val Context.prefs by preferencesDataStore("vipjam_prefs")
 
@@ -121,7 +113,6 @@ internal val TopDestinations = listOf(
 )
 
 internal enum class Detail(val label: String) {
-    Sound("Sound"),
     Presets("Presets"),
     Lab("Lab"),
     System("System")
@@ -147,6 +138,7 @@ fun VipJamApp() {
     val haptics = LocalHapticFeedback.current
     var detail by rememberSaveable { mutableStateOf<Detail?>(null) }
     var systemDetail by remember { mutableStateOf<SystemDetail?>(null) }
+    var labTool by rememberSaveable { mutableStateOf(LabTool.TestTone) }
     var menuOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val store = remember { PresetStore(context.prefs) }
@@ -161,26 +153,9 @@ fun VipJamApp() {
     val masterOn by context.prefs.data
         .map { it[VipJamPrefs.MASTER_ENABLE] ?: false }
         .collectAsState(initial = false)
-    var driverOk by remember { mutableStateOf(false) }
-    var driverText by remember { mutableStateOf("Probing driver") }
-    LaunchedEffect(Unit) {
-        val outcome = withContext(Dispatchers.IO) {
-            val dispatcher = VipJamDispatcher(0)
-            try {
-                if (!dispatcher.create()) {
-                    false to "Driver not installed"
-                } else {
-                    val version = dispatcher.getParam(VipJamDispatcher.GET_VERSION_CODE)
-                    if (version == null) false to "Module missing"
-                    else true to "Driver v$version"
-                }
-            } finally {
-                dispatcher.release()
-            }
-        }
-        driverOk = outcome.first
-        driverText = outcome.second
-    }
+    val activeName by context.prefs.data
+        .map { it[VipJamPrefs.ACTIVE_PRESET] }
+        .collectAsState(initial = null)
 
     fun persistMaster(on: Boolean) {
         scope.launch {
@@ -225,9 +200,22 @@ fun VipJamApp() {
                 .onSuccess { launch { snackbar.showSnackbar("EQ flattened") } }
                 .onFailure { launch { snackbar.showSnackbar("Edit failed: ${it.message}") } }
             for (i in bands.indices) {
-                VipJamService.dispatchParam(context, VipJamDispatcher.F_EQ, i, 0, 0)
+                VipJamService.dispatchParam(context, com.vipjam.dsp.VipJamDispatcher.F_EQ, i, 0, 0)
             }
         }
+    }
+
+    fun openLab(tool: LabTool) {
+        menuOpen = false
+        labTool = tool
+        systemDetail = null
+        detail = Detail.Lab
+    }
+
+    fun openSystem(entry: SystemDetail) {
+        menuOpen = false
+        detail = Detail.System
+        systemDetail = entry
     }
 
     val current = detail
@@ -240,48 +228,7 @@ fun VipJamApp() {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            if (current == null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "VipJam",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics { heading() }
-                    )
-                    val dotColor = if (driverOk) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.error
-                    }
-                    Canvas(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .semantics {
-                                contentDescription =
-                                    if (driverOk) "Driver connected" else "Driver missing"
-                            }
-                    ) {
-                        drawCircle(
-                            color = dotColor,
-                            radius = size.minDimension / 2f
-                        )
-                    }
-                    Text(
-                        text = driverText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
+            if (current != null) {
                 val title = if (current == Detail.System && sysDetail != null) {
                     sysDetail.label
                 } else {
@@ -315,48 +262,34 @@ fun VipJamApp() {
         },
         bottomBar = {
             BottomAppBar {
-                IconButton(
+                TextButton(
                     onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         systemDetail = null
-                        detail = Detail.System
+                        detail = Detail.Presets
                     },
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    DestinationGlyph(
-                        destination = TabPage.System,
-                        contentDescription = "System",
-                        tint = if (current == Detail.System) {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                Row(
                     modifier = Modifier
+                        .weight(1f)
                         .heightIn(min = 48.dp)
-                        .clickable(role = Role.Switch) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            persistMaster(!masterOn)
-                        }
-                        .padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Power",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = activeName ?: "Choose preset",
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Switch(checked = masterOn, onCheckedChange = null)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         text = if (masterOn) "On" else "Off",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    PopSwitch(checked = masterOn, onToggle = ::persistMaster)
                 }
-                Spacer(modifier = Modifier.weight(1f))
                 Box {
                     TextButton(
                         onClick = { menuOpen = true },
@@ -369,7 +302,7 @@ fun VipJamApp() {
                         onDismissRequest = { menuOpen = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Presets") },
+                            text = { Text("Preset manager") },
                             onClick = {
                                 menuOpen = false
                                 systemDetail = null
@@ -384,12 +317,32 @@ fun VipJamApp() {
                             }
                         )
                         DropdownMenuItem(
+                            text = { Text("Tone") },
+                            onClick = { openLab(LabTool.TestTone) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("LiveProg") },
+                            onClick = { openLab(LabTool.LiveProg) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("AutoEq") },
+                            onClick = { openLab(LabTool.AutoEq) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("App profiles") },
+                            onClick = { openSystem(SystemDetail.Apps) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Module installer") },
+                            onClick = { openSystem(SystemDetail.Module) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Diagnostics") },
+                            onClick = { openSystem(SystemDetail.Status) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("About") },
-                            onClick = {
-                                menuOpen = false
-                                detail = Detail.System
-                                systemDetail = SystemDetail.About
-                            }
+                            onClick = { openSystem(SystemDetail.About) }
                         )
                     }
                 }
@@ -412,16 +365,21 @@ fun VipJamApp() {
                     null -> HomeTab(
                         store = store,
                         snackbar = snackbar,
-                        onOpenSound = { detail = Detail.Sound },
-                        onOpenPresets = { detail = Detail.Presets },
+                        onOpenPresets = {
+                            systemDetail = null
+                            detail = Detail.Presets
+                        },
                         onOpenModule = {
                             detail = Detail.System
                             systemDetail = SystemDetail.Module
                         }
                     )
-                    Detail.Sound -> EffectsTab(store, snackbar)
                     Detail.Presets -> PresetsTab(store, snackbar)
-                    Detail.Lab -> LabScreen(snackbar)
+                    Detail.Lab -> LabScreen(
+                        snackbar = snackbar,
+                        tool = labTool,
+                        onToolChange = { labTool = it }
+                    )
                     Detail.System -> SystemScreen(
                         store = store,
                         snackbar = snackbar,
@@ -439,8 +397,11 @@ fun VipJamApp() {
 }
 
 @Composable
-private fun LabScreen(snackbar: SnackbarHostState) {
-    var tool by rememberSaveable { mutableStateOf(LabTool.TestTone) }
+private fun LabScreen(
+    snackbar: SnackbarHostState,
+    tool: LabTool,
+    onToolChange: (LabTool) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -453,7 +414,7 @@ private fun LabScreen(snackbar: SnackbarHostState) {
             LabTool.entries.forEachIndexed { index, entry ->
                 SegmentedButton(
                     selected = tool == entry,
-                    onClick = { tool = entry },
+                    onClick = { onToolChange(entry) },
                     shape = SegmentedButtonDefaults.itemShape(index, LabTool.entries.size),
                     label = { Text(entry.label) }
                 )
@@ -465,7 +426,7 @@ private fun LabScreen(snackbar: SnackbarHostState) {
                     modifier = if (tool == entry) {
                         Modifier.fillMaxSize()
                     } else {
-                        Modifier.clearAndSetSemantics {}.size(0.dp)
+                        Modifier.clearAndSetSemantics {}.heightIn(max = 1.dp)
                     }
                 ) {
                     when (entry) {
@@ -554,5 +515,6 @@ private fun AboutDetail() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
