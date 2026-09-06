@@ -12,6 +12,7 @@ object VipJamPrefs {
     val V3_INITIALIZED = booleanPreferencesKey("v3_initialized")
     val ACTIVE_PROFILE = stringPreferencesKey("active_profile")
     val ACTIVE_PRESET = stringPreferencesKey("active_preset")
+    val CMD_SEQ = intPreferencesKey("cmd_seq")
 
     fun effectKey(effectKey: String, jsonKey: String): String =
         "${effectKey}_${jsonKey}"

@@ -22,6 +22,8 @@ import com.vipjam.data.VipJamPrefs
 import com.vipjam.appprofile.AppProfileMonitor
 import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.dsp.PresetApplier
+import com.vipjam.dsp.VipJamCommand
+import com.vipjam.dsp.VipJamCommandParser
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.ui.prefs
 import kotlinx.coroutines.CoroutineScope
@@ -37,10 +39,16 @@ class VipJamService : Service() {
     private var audioManager: AudioManager? = null
     private var deviceCallback: AudioDeviceCallback? = null
     private var appProfileMonitor: AppProfileMonitor? = null
+    private var commandObserver: ContentObserver? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        try {
+            commandObserver?.let { contentResolver.unregisterContentObserver(it) }
+        } catch (_: Exception) {
+        }
+        commandObserver = null
         try {
             appProfileMonitor?.stop()
         } catch (_: Exception) {
@@ -72,6 +80,57 @@ class VipJamService : Service() {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, 0)
         }
         registerDeviceCallback()
+        registerCommandObserver()
+    }
+
+    private fun registerCommandObserver() {
+        val uri = Settings.Global.getUriFor(CMD_KEY)
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                scope.launch { drainCommand() }
+            }
+        }
+        commandObserver = observer
+        try {
+            contentResolver.registerContentObserver(uri, false, observer)
+        } catch (_: Exception) {
+            commandObserver = null
+        }
+        scope.launch { drainCommand() }
+    }
+
+    private suspend fun drainCommand() {
+        val resolver = contentResolver
+        val seq = runCatching {
+            Settings.Global.getString(resolver, CMD_SEQ_KEY)?.toInt()
+        }.getOrNull() ?: return
+        val store = PresetStore(applicationContext.prefs)
+        val prefs = applicationContext.prefs
+        val last = prefs.data.first()[VipJamPrefs.CMD_SEQ] ?: -1
+        if (seq <= last) return
+        val text = runCatching {
+            Settings.Global.getString(resolver, CMD_KEY)
+        }.getOrNull()
+        prefs.edit { it[VipJamPrefs.CMD_SEQ] = seq }
+        when (val cmd = VipJamCommandParser.parse(text)) {
+            is VipJamCommand.ToggleMaster -> {
+                val cur = prefs.data.first()[VipJamPrefs.MASTER_ENABLE] ?: false
+                prefs.edit { it[VipJamPrefs.MASTER_ENABLE] = !cur }
+                applyMaster(!cur)
+            }
+            is VipJamCommand.SetProfile -> {
+                prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = cmd.route }
+                applyProfile(cmd.route)
+            }
+            is VipJamCommand.SetParam ->
+                dispatchParamNow(cmd.id, cmd.v0, cmd.v1, cmd.v2)
+            is VipJamCommand.ApplyPreset -> {
+                val master = prefs.data.first()[VipJamPrefs.MASTER_ENABLE] ?: false
+                store.importText(cmd.settingsJson)
+                applyPreset(cmd.settingsJson, master)
+            }
+            null -> Unit
+        }
     }
 
     private fun registerDeviceCallback() {
@@ -198,6 +257,19 @@ class VipJamService : Service() {
     }
 
     private fun applyProfile(profile: String) {
+        scope.launch {
+            val prefs = applicationContext.prefs
+            val store = PresetStore(applicationContext.prefs)
+            val master = prefs.data.first()[VipJamPrefs.MASTER_ENABLE] ?: false
+            val linked = store.routePresetMap.first()[profile]
+            val entries = store.entries.first()
+            val target = linked?.let { name -> entries.find { it.name == name } }
+                ?: entries.find { it.name == prefs.data.first()[VipJamPrefs.ACTIVE_PRESET] }
+            if (target != null) {
+                store.setRoutePreset(profile, target.name)
+                applyPreset(target.settingsJson, master)
+            }
+        }
     }
 
     private fun dispatchParamNow(id: Int, v0: Int, v1: Int, v2: Int) {
@@ -246,6 +318,8 @@ class VipJamService : Service() {
         const val EXTRA_MASTER_ENABLED = "master_enabled"
         const val EXTRA_PROFILE = "profile"
         const val EXTRA_PRESET_JSON = "preset_json"
+        const val CMD_KEY = "vipjam_cmd"
+        const val CMD_SEQ_KEY = "vipjam_cmd_seq"
         const val ACTION_DISPATCH_PARAM = "com.vipjam.action.DISPATCH_PARAM"
         const val EXTRA_PARAM_ID = "param_id"
         const val EXTRA_PARAM_V0 = "param_v0"

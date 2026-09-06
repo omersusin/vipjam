@@ -18,6 +18,7 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
     private val namesKey = stringSetPreferencesKey("preset_names")
 
     private fun bodyKey(name: String) = stringPreferencesKey("preset_$name")
+    private val routeMapKey = stringPreferencesKey("route_preset_map")
 
     val entries: Flow<List<PresetEntry>> = dataStore.data
         .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
@@ -52,6 +53,26 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { prefs ->
             prefs[namesKey] = prefs[namesKey].orEmpty() - name
             prefs.remove(bodyKey(name))
+        }
+    }
+
+    val routePresetMap: Flow<Map<String, String>> = dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map { prefs ->
+            runCatching {
+                JSONObject(prefs[routeMapKey].orEmpty()).let { obj ->
+                    obj.keys().asSequence().associateWith { obj.getString(it) }
+                }
+            }.getOrDefault(emptyMap())
+        }
+
+    suspend fun setRoutePreset(route: String, presetName: String) {
+        dataStore.edit { prefs ->
+            val obj = runCatching {
+                JSONObject(prefs[routeMapKey].orEmpty())
+            }.getOrDefault(JSONObject())
+            obj.put(route, presetName)
+            prefs[routeMapKey] = obj.toString()
         }
     }
 

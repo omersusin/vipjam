@@ -69,11 +69,23 @@ do_sessions() {
 }
 
 do_help() {
-  echo "Usage: vipjam-ctl {status|sessions|version|help}"
+  echo "Usage: vipjam-ctl {status|sessions|version|toggle-master|set-profile|set-param|apply-preset|help}"
   echo "  status   - module version, persist.vipjam.* props, audio_effects vipjam blocks, shm_status head"
   echo "  sessions - dumpsys audio filtered for vipjam/effect sessions"
   echo "  version  - print module.prop version line"
+  echo "  toggle-master - flip master on/off (via app service)"
+  echo "  set-profile <route> - headset|speaker|bluetooth (via app service)"
+  echo "  set-param <id> <v0> [v1] [v2] - raw scalar param (via app service)"
+  echo "  apply-preset <file> - apply a .v3.json preset (via app service)"
   echo "  help     - print this usage"
+}
+
+send_cmd() {
+  settings put global vipjam_cmd "$1" >/dev/null
+  seq="$(settings get global vipjam_cmd_seq 2>/dev/null)"
+  case "$seq" in ''|*[!0-9]*) seq=0 ;; esac
+  settings put global vipjam_cmd_seq "$((seq + 1))" >/dev/null
+  echo "sent"
 }
 
 case "$1" in
@@ -85,6 +97,22 @@ case "$1" in
     ;;
   version)
     print_version
+    ;;
+  toggle-master)
+    send_cmd '{"cmd":"toggle"}'
+    ;;
+  set-profile)
+    [ -n "$2" ] || { echo "need a route"; exit 2; }
+    send_cmd "{\"cmd\":\"profile\",\"route\":\"$2\"}"
+    ;;
+  set-param)
+    [ -n "$3" ] || { echo "need id + value"; exit 2; }
+    send_cmd "{\"cmd\":\"param\",\"id\":$2,\"v0\":$3,\"v1\":${4:-0},\"v2\":${5:-0}}"
+    ;;
+  apply-preset)
+    [ -f "$2" ] || { echo "no such file: $2"; exit 2; }
+    compact="$(tr -d '\n\r' < "$2")"
+    send_cmd "{\"cmd\":\"preset\",\"json\":$compact}"
     ;;
   help|--help|-h|"")
     do_help
