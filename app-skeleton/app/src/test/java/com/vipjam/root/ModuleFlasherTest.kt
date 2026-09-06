@@ -92,4 +92,24 @@ class ModuleFlasherTest {
         val done = events.filterIsInstance<FlashEvent.Finished>().single()
         assertTrue(!done.ok)
     }
+
+    @Test
+    fun parseReleaseReadsTagAndNotes() {
+        val info = ReleaseApi.parseRelease(
+            """{"tag_name":"v0.1.3","body":"Fixes","assets":[]}""",
+        )!!
+        assertEquals("v0.1.3", info.tag)
+        assertEquals("Fixes", info.notes)
+        assertNull(ReleaseApi.parseRelease("""{"assets":[]}"""))
+        assertNull(ReleaseApi.parseRelease("garbage"))
+    }
+
+    @Test
+    fun isNewerComparesVersions() {
+        assertTrue(ReleaseApi.isNewer("v0.1.3", "0.1.2"))
+        assertTrue(!ReleaseApi.isNewer("v0.1.2", "0.1.2"))
+        assertTrue(!ReleaseApi.isNewer("v0.1.1", "0.1.2"))
+        assertTrue(ReleaseApi.isNewer("v0.2.0", "0.1.9"))
+    }
+}
 }

@@ -10,6 +10,8 @@ import java.net.URL
 
 data class Asset(val name: String, val url: String)
 
+data class ReleaseInfo(val tag: String, val notes: String)
+
 object ReleaseApi {
     const val LATEST_URL = "https://api.github.com/repos/omersusin/vipjam/releases/latest"
     val ASSET_PATTERN = Regex("vipjam-magisk-.*\\.zip")
@@ -28,7 +30,25 @@ object ReleaseApi {
         return null
     }
 
-    suspend fun latestModuleAsset(): Asset = withContext(Dispatchers.IO) {
+    fun parseRelease(releaseJson: String): ReleaseInfo? = runCatching {
+        val root = JSONObject(releaseJson)
+        val tag = root.optString("tag_name", "")
+        if (tag.isBlank()) return@runCatching null
+        ReleaseInfo(tag, root.optString("body", ""))
+    }.getOrNull()
+
+    fun isNewer(latestTag: String, currentVersion: String): Boolean {
+        val l = latestTag.trimStart('v', 'V').split(".", "-")
+        val c = currentVersion.trimStart('v', 'V').split(".", "-")
+        for (i in 0 until maxOf(l.size, c.size)) {
+            val a = l.getOrNull(i)?.toIntOrNull() ?: 0
+            val b = c.getOrNull(i)?.toIntOrNull() ?: 0
+            if (a != b) return a > b
+        }
+        return false
+    }
+
+    private suspend fun fetchLatestJson(): String = withContext(Dispatchers.IO) {
         val conn = (URL(LATEST_URL).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 15_000
@@ -40,11 +60,22 @@ object ReleaseApi {
             if (code != HttpURLConnection.HTTP_OK) {
                 throw IOException("GitHub releases returned HTTP $code")
             }
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            pickModuleAsset(body) ?: throw NoSuchElementException("No vipjam-magisk zip asset in latest release")
+            conn.inputStream.bufferedReader().use { it.readText() }
         } finally {
             conn.disconnect()
         }
+    }
+
+    suspend fun latestRelease(): ReleaseInfo {
+        val info = parseRelease(fetchLatestJson())
+            ?: throw NoSuchElementException("No releases found")
+        return info
+    }
+
+    suspend fun latestModuleAsset(): Asset {
+        val body = fetchLatestJson()
+        return pickModuleAsset(body)
+            ?: throw NoSuchElementException("No vipjam-magisk zip asset in latest release")
     }
 
     suspend fun download(url: String, dest: File, onProgress: (Int) -> Unit) {

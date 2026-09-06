@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,7 +69,10 @@ import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.service.VipJamService
+import com.vipjam.root.ReleaseApi
+import com.vipjam.root.ReleaseInfo
 import com.vipjam.ui.components.DriverStatusDialog
+import com.vipjam.ui.components.LoadingState
 import com.vipjam.ui.components.PowerDot
 import com.vipjam.ui.components.SectionCard
 import com.vipjam.ui.theme.VipJamTheme
@@ -550,6 +554,10 @@ private fun SystemScreen(
 
 @Composable
 private fun AboutDetail() {
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<ReleaseInfo?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -567,6 +575,55 @@ private fun AboutDetail() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+        SectionCard(title = "Updates") {
+            if (checking) {
+                LoadingState("Checking for updates")
+            } else {
+                Button(
+                    onClick = {
+                        checking = true
+                        result = null
+                        error = null
+                        scope.launch {
+                            try {
+                                result = ReleaseApi.latestRelease()
+                            } catch (e: Exception) {
+                                error = e.message ?: "check failed"
+                            } finally {
+                                checking = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text("Check for updates") }
+            }
+            error?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            result?.let { info ->
+                val newer = ReleaseApi.isNewer(info.tag, BuildConfig.VERSION_NAME)
+                Text(
+                    text = if (newer) {
+                        "Update available: ${info.tag}"
+                    } else {
+                        "Up to date (${info.tag})"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (info.notes.isNotBlank()) {
+                    Text(
+                        text = info.notes.take(2000),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.weight(1f))
     }
