@@ -71,14 +71,6 @@ object PresetApplier {
             }.getOrDefault(false)
             en and param
         } and ok
-        ok = group(obj, VipJamEffects.MASTER_LIMITER) { g ->
-            runCatching {
-                sink.setParam(
-                    VipJamDispatcher.F_LIMITER,
-                    g.optInt("threshold", 100).coerceIn(0, 100),
-                )
-            }.getOrDefault(false)
-        } and ok
         ok = group(obj, VipJamEffects.CONVOLVER) { g ->
             runCatching {
                 sink.setParam(VipJamDispatcher.P_CONV_ENABLE, if (g.optBoolean("enable")) 1 else 0)
