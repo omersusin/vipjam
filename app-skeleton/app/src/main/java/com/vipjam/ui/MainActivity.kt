@@ -257,6 +257,11 @@ fun VipJamApp() {
                             .weight(1f)
                             .semantics { heading() }
                     )
+                    val dotColor = if (driverOk) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    }
                     Canvas(
                         modifier = Modifier
                             .size(12.dp)
@@ -266,11 +271,7 @@ fun VipJamApp() {
                             }
                     ) {
                         drawCircle(
-                            color = if (driverOk) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.error
-                            },
+                            color = dotColor,
                             radius = size.minDimension / 2f
                         )
                     }
