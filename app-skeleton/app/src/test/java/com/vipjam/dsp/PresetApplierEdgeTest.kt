@@ -136,7 +136,13 @@ class PresetApplierEdgeTest {
         }
         val json = """{"masterLimiter":{"threshold":80,"outputVolume":100,"channelPan":0}}"""
         assertTrue(PresetApplier.apply(sink, json, true))
-        assertEquals(listOf(listOf(VipJamDispatcher.F_LIMITER, 80)), quads)
+        assertEquals(
+            listOf(
+                listOf(VipJamDispatcher.P_MASTER, 1),
+                listOf(VipJamDispatcher.F_LIMITER, 80),
+            ),
+            quads,
+        )
     }
 
     @Test
