@@ -3,6 +3,12 @@ package com.vipjam.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,6 +48,9 @@ import com.vipjam.ui.components.EmptyState
 import com.vipjam.ui.components.ErrorState
 import com.vipjam.ui.components.LoadingState
 import com.vipjam.ui.components.SectionCard
+import com.vipjam.ui.components.StatRow
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,6 +73,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
     var showDialog by remember { mutableStateOf(false) }
     var flashLog by remember { mutableStateOf(listOf<String>()) }
     var finished by remember { mutableStateOf<FlashEvent.Finished?>(null) }
+    val reducedMotion = rememberReducedMotion()
 
     suspend fun probeNow() {
         probing = true
@@ -165,57 +175,47 @@ fun ModuleTab(snackbar: SnackbarHostState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SectionCard(title = "Root status") {
-            if (probing) {
-                LoadingState("Checking root…")
-            } else {
-                Text(
-                    "Root (su): " + if (hasSu == true) "yes" else "no",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    "Manager: $managerLabel",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                if (!canFlash) {
-                    Text(
-                        "Grant root access and install Magisk, KernelSU, or APatch to flash the module.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        SectionCard(title = "Installed module") {
-            if (probing) {
-                LoadingState("Reading module…")
-            } else {
-                val current = prop
-                if (current == null) {
-                    EmptyState(
-                        title = "Module not installed",
-                        body = "Flash the module below, then reboot to activate it.",
-                    )
+        StaggeredModule(0, reducedMotion) {
+            SectionCard(title = "Root status") {
+                if (probing) {
+                    LoadingState("Checking root…")
                 } else {
-                    Text(
-                        "Version: " + (current["version"] ?: "unknown"),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        "Code: " + (current["versionCode"] ?: "unknown"),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        "Name: " + (current["name"] ?: "unknown"),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    StatRow(label = "Root (su)", value = if (hasSu == true) "yes" else "no")
+                    StatRow(label = "Manager", value = managerLabel)
+                    if (!canFlash) {
+                        Text(
+                            "Grant root access and install Magisk, KernelSU, or APatch to flash the module.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
-        SectionCard(
-            title = "Flash",
-            subtitle = "Latest release zip from GitHub, or a zip already on this device",
-        ) {
+        StaggeredModule(1, reducedMotion) {
+            SectionCard(title = "Installed module") {
+                if (probing) {
+                    LoadingState("Reading module…")
+                } else {
+                    val current = prop
+                    if (current == null) {
+                        EmptyState(
+                            title = "Module not installed",
+                            body = "Flash the module below, then reboot to activate it.",
+                        )
+                    } else {
+                        StatRow(label = "Version", value = current["version"] ?: "unknown")
+                        StatRow(label = "Code", value = current["versionCode"] ?: "unknown")
+                        StatRow(label = "Name", value = current["name"] ?: "unknown")
+                    }
+                }
+            }
+        }
+        StaggeredModule(2, reducedMotion) {
+            SectionCard(
+                title = "Flash",
+                subtitle = "Latest release zip from GitHub, or a zip already on this device",
+            ) {
             if (downloading) {
                 LoadingState("Downloading…" + (downloadProgress?.let { " $it%" } ?: ""))
                 val progress = downloadProgress
@@ -233,7 +233,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
                 enabled = canFlash && !downloading && !flashing,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Download & Flash")
+                Text("Download and flash")
             }
             OutlinedButton(
                 onClick = { picker.launch("*/*") },
@@ -248,6 +248,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
                     message = err,
                     onRetry = { scope.launch { probeNow() } },
                 )
+            }
             }
         }
     }
@@ -317,5 +318,22 @@ fun ModuleTab(snackbar: SnackbarHostState) {
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun StaggeredModule(index: Int, reducedMotion: Boolean, content: @Composable () -> Unit) {
+    if (reducedMotion) {
+        content()
+    } else {
+        val delay = staggeredDelayForIndex(index)
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+            exit = fadeOut(),
+        ) {
+            content()
+        }
     }
 }

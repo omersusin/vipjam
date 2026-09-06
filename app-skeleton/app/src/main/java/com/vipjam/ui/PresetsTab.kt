@@ -4,7 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,10 +17,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -41,6 +45,10 @@ import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.service.VipJamService
+import com.vipjam.ui.components.PressableCard
+import com.vipjam.ui.components.SectionHeader
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -120,6 +128,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
 
     val list = entries
     val filtered = list?.filter { it.name.contains(query, ignoreCase = true) }.orEmpty()
+    val reducedMotion = rememberReducedMotion()
 
     Column(
         modifier = Modifier
@@ -127,7 +136,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Presets", style = MaterialTheme.typography.headlineLarge)
+        SectionHeader(title = "Presets")
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -156,19 +165,42 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 modifier = Modifier.weight(1f, fill = false),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                items(filtered, key = { it.name }) { entry ->
-                    PresetRow(
-                        entry = entry,
-                        isActive = entry.name == activeName,
-                        onApply = { applyEntry(entry, list) },
-                        onRename = {
-                            renameTarget = entry
-                            renameText = entry.name
-                            renameError = null
-                        },
-                        onShare = { shareEntry(entry) },
-                        onDelete = { deleteTarget = entry },
-                    )
+                itemsIndexed(filtered, key = { _, it -> it.name }) { index, entry ->
+                    val delay = staggeredDelayForIndex(index)
+                    if (reducedMotion) {
+                        PresetRow(
+                            entry = entry,
+                            isActive = entry.name == activeName,
+                            onApply = { applyEntry(entry, list) },
+                            onRename = {
+                                renameTarget = entry
+                                renameText = entry.name
+                                renameError = null
+                            },
+                            onShare = { shareEntry(entry) },
+                            onDelete = { deleteTarget = entry },
+                        )
+                    } else {
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+                            exit = fadeOut(),
+                        ) {
+                            PresetRow(
+                                entry = entry,
+                                isActive = entry.name == activeName,
+                                onApply = { applyEntry(entry, list) },
+                                onRename = {
+                                    renameTarget = entry
+                                    renameText = entry.name
+                                    renameError = null
+                                },
+                                onShare = { shareEntry(entry) },
+                                onDelete = { deleteTarget = entry },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -252,11 +284,11 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                         val next = renameText.trim()
                         scope.launch {
                             if (next.isEmpty()) {
-                                renameError = "name must be non-empty"
+                                renameError = "Name must not be empty"
                                 return@launch
                             }
                             if (next != target.name && list?.any { it.name == next } == true) {
-                                renameError = "a preset named \"$next\" already exists"
+                                renameError = "A preset named \"$next\" already exists"
                                 return@launch
                             }
                             val saved = store.rename(target.name, next)
@@ -324,31 +356,25 @@ fun PresetRow(
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onApply),
+    PressableCard(
+        onClick = onApply,
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(entry.name, style = MaterialTheme.typography.titleMedium)
-                if (isActive) {
-                    Text("Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                }
+            Text(entry.name, style = MaterialTheme.typography.titleMedium)
+            if (isActive) {
+                Text("Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onApply) { Text("Apply") }
-                OutlinedButton(onClick = onRename) { Text("Rename") }
-                OutlinedButton(onClick = onShare) { Text("Share") }
-                OutlinedButton(onClick = onDelete) { Text("Delete") }
-            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onApply) { Text("Apply") }
+            OutlinedButton(onClick = onRename) { Text("Rename") }
+            OutlinedButton(onClick = onShare) { Text("Share") }
+            OutlinedButton(onClick = onDelete) { Text("Delete") }
         }
     }
 }

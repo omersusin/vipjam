@@ -1,5 +1,11 @@
 package com.vipjam.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +36,9 @@ import com.vipjam.data.LiveProgEntry
 import com.vipjam.data.LiveProgScripts
 import com.vipjam.data.LiveProgStore
 import com.vipjam.ui.components.EmptyState
+import com.vipjam.ui.components.SectionHeader
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,6 +73,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
     var lastRun by remember { mutableStateOf("") }
     var queue by remember { mutableStateOf(emptyList<QueuedRun>()) }
     var expanded by remember { mutableStateOf<String?>(null) }
+    val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -99,7 +109,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("LiveProg", style = MaterialTheme.typography.headlineLarge)
+            SectionHeader(title = "LiveProg")
         }
         item {
             Text(
@@ -109,7 +119,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
             )
         }
         item {
-            Text("Examples", style = MaterialTheme.typography.headlineSmall)
+            SectionHeader(title = "Examples")
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -229,10 +239,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
             }
         }
         item {
-            Text(
-                "Run queue (${queue.size})",
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            SectionHeader(title = "Run queue (${queue.size})")
         }
         if (queue.isEmpty()) {
             item {
@@ -242,8 +249,9 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                 )
             }
         } else {
-            items(queue, key = { it.atMillis to it.name }) { q ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+            itemsIndexed(queue, key = { _, q -> q.atMillis to q.name }) { index, q ->
+                StaggeredLiveProg(index, reducedMotion) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -255,11 +263,12 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    }
                 }
             }
         }
         item {
-            Text("Saved scripts (${entries.size})", style = MaterialTheme.typography.headlineSmall)
+            SectionHeader(title = "Saved scripts (${entries.size})")
         }
         if (entries.isEmpty()) {
             item {
@@ -269,8 +278,9 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                 )
             }
         }
-        items(entries, key = { it.name }) { entry ->
-            Card(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(entries, key = { _, it -> it.name }) { index, entry ->
+            StaggeredLiveProg(index, reducedMotion) {
+                Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -323,8 +333,26 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                             Text("Delete")
                         }
                     }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaggeredLiveProg(index: Int, reducedMotion: Boolean, content: @Composable () -> Unit) {
+    if (reducedMotion) {
+        content()
+    } else {
+        val delay = staggeredDelayForIndex(index)
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+            exit = fadeOut(),
+        ) {
+            content()
         }
     }
 }

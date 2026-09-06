@@ -76,6 +76,8 @@ private fun liveParam(settingsJson: String, group: String, field: String): LiveP
             if (index !in 0 until bands.length()) return null
             LiveParam(VipJamDispatcher.F_EQ, index, bands.optDouble(index).roundToInt(), 0)
         }
+        VipJamEffects.TUBE ->
+            LiveParam(VipJamDispatcher.F_TUBE, g.optInt("drive", 0).coerceIn(0, 100), 0, 0)
         else -> null
     }
 }
@@ -86,6 +88,16 @@ private fun groupEnableParam(group: String): Int? = when (group) {
     VipJamEffects.EQ -> VipJamDispatcher.P_EQ_ENABLE
     VipJamEffects.REVERB -> VipJamDispatcher.P_REVERB_ENABLE
     VipJamEffects.CONVOLVER -> VipJamDispatcher.P_CONV_ENABLE
+    VipJamEffects.PLAYBACK_GAIN -> VipJamDispatcher.P_PGC_ENABLE
+    VipJamEffects.DDC -> VipJamDispatcher.P_DDC_ENABLE
+    VipJamEffects.DYN_SYS -> VipJamDispatcher.P_DYNSYS_ENABLE
+    VipJamEffects.TUBE -> VipJamDispatcher.P_TUBE_ENABLE
+    VipJamEffects.CURE -> VipJamDispatcher.P_CURE_ENABLE
+    VipJamEffects.ANALOGX -> VipJamDispatcher.P_ANALOGX_ENABLE
+    VipJamEffects.FET -> VipJamDispatcher.P_FET_ENABLE
+    VipJamEffects.FIELD -> VipJamDispatcher.P_VHE_ENABLE
+    VipJamEffects.DIFF -> VipJamDispatcher.P_DIFF_ENABLE
+    VipJamEffects.SPEAKER -> VipJamDispatcher.P_SPK_ENABLE
     else -> null
 }
 
@@ -187,6 +199,9 @@ private fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when 
     )
     VipJamEffects.CLARITY -> listOf(
         SliderSpec("gain", "Gain", 0f..450f, 50f) { "${it.roundToInt()}" },
+    )
+    VipJamEffects.TUBE -> listOf(
+        SliderSpec("drive", "Drive", 0f..100f, 0f, ::percentFormat),
     )
     VipJamEffects.REVERB -> listOf(
         SliderSpec("roomSize", "Room size", 0f..100f, 0f, ::percentFormat),
@@ -642,11 +657,13 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                                 } else {
                                     val specs = sliderSpecs(group, parsed)
                                     if (specs == null) {
-                                        Text(
-                                            "Included in preset — no manual controls yet",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        if (groupEnableParam(group) == null) {
+                                            Text(
+                                                "No live switch for this stage yet — stored in preset",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     } else {
                                         specs.forEach { spec ->
                                             val v = specValue(

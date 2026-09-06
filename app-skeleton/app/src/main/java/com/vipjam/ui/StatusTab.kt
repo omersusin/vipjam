@@ -65,6 +65,16 @@ private val LIVE_PROBE_IDS = listOf(
     VipJamDispatcher.P_EQ_ENABLE,
     VipJamDispatcher.P_REVERB_ENABLE,
     VipJamDispatcher.P_CONV_ENABLE,
+    VipJamDispatcher.P_PGC_ENABLE,
+    VipJamDispatcher.P_DDC_ENABLE,
+    VipJamDispatcher.P_DYNSYS_ENABLE,
+    VipJamDispatcher.P_TUBE_ENABLE,
+    VipJamDispatcher.P_CURE_ENABLE,
+    VipJamDispatcher.P_ANALOGX_ENABLE,
+    VipJamDispatcher.P_FET_ENABLE,
+    VipJamDispatcher.P_VHE_ENABLE,
+    VipJamDispatcher.P_DIFF_ENABLE,
+    VipJamDispatcher.P_SPK_ENABLE,
 )
 
 private fun liveParamForStage(stage: String): Int? = when (stage) {
@@ -73,6 +83,16 @@ private fun liveParamForStage(stage: String): Int? = when (stage) {
     VipJamEffects.EQ -> VipJamDispatcher.P_EQ_ENABLE
     VipJamEffects.REVERB -> VipJamDispatcher.P_REVERB_ENABLE
     VipJamEffects.CONVOLVER -> VipJamDispatcher.P_CONV_ENABLE
+    VipJamEffects.PLAYBACK_GAIN -> VipJamDispatcher.P_PGC_ENABLE
+    VipJamEffects.DDC -> VipJamDispatcher.P_DDC_ENABLE
+    VipJamEffects.DYN_SYS -> VipJamDispatcher.P_DYNSYS_ENABLE
+    VipJamEffects.TUBE -> VipJamDispatcher.P_TUBE_ENABLE
+    VipJamEffects.CURE -> VipJamDispatcher.P_CURE_ENABLE
+    VipJamEffects.ANALOGX -> VipJamDispatcher.P_ANALOGX_ENABLE
+    VipJamEffects.FET -> VipJamDispatcher.P_FET_ENABLE
+    VipJamEffects.FIELD -> VipJamDispatcher.P_VHE_ENABLE
+    VipJamEffects.DIFF -> VipJamDispatcher.P_DIFF_ENABLE
+    VipJamEffects.SPEAKER -> VipJamDispatcher.P_SPK_ENABLE
     else -> null
 }
 

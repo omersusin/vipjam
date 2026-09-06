@@ -3,6 +3,12 @@ package com.vipjam.ui
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.vipjam.dsp.VipJamNative
 import com.vipjam.ui.components.EmptyState
+import com.vipjam.ui.components.SectionHeader
+import com.vipjam.ui.components.StatRow
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -55,6 +65,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
     var playing by remember { mutableStateOf(false) }
     var liveRms by remember { mutableStateOf<Float?>(null) }
     var lastRms by remember { mutableStateOf<String?>(null) }
+    val reducedMotion = rememberReducedMotion()
 
     DisposableEffect(Unit) {
         onDispose {
@@ -196,49 +207,51 @@ fun TestToneTab(snackbar: SnackbarHostState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Test tone", style = MaterialTheme.typography.headlineLarge)
-        Text(
-            "Frequency %.0f Hz".format(freq),
-            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Slider(
-            value = freq,
-            onValueChange = { freq = it },
-            valueRange = 30f..4000f,
-            enabled = !playing,
-        )
-        Text(
-            "Gain %.0f %%".format(gain),
-            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Slider(
-            value = gain,
-            onValueChange = { gain = it },
-            valueRange = 0f..100f,
-            enabled = !playing,
-        )
-        Text(
-            "Duration %.1fs".format(durationSec),
-            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Slider(
-            value = durationSec,
-            onValueChange = { durationSec = it },
-            valueRange = 1f..10f,
-            enabled = !playing,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { play(true) }, enabled = !playing) {
-                Text("Play DSP")
+        SectionHeader(title = "Test tone")
+        StaggeredTone(0, reducedMotion = reducedMotion) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatRow(label = "Frequency", value = "%.0f Hz".format(freq))
+                Slider(
+                    value = freq,
+                    onValueChange = { freq = it },
+                    valueRange = 30f..4000f,
+                    enabled = !playing,
+                )
             }
-            OutlinedButton(onClick = { play(false) }, enabled = !playing) {
-                Text("Play bypass")
+        }
+        StaggeredTone(1, reducedMotion = reducedMotion) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatRow(label = "Gain", value = "%.0f %%".format(gain))
+                Slider(
+                    value = gain,
+                    onValueChange = { gain = it },
+                    valueRange = 0f..100f,
+                    enabled = !playing,
+                )
             }
-            OutlinedButton(onClick = ::stop, enabled = playing) {
-                Text("Stop")
+        }
+        StaggeredTone(2, reducedMotion = reducedMotion) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatRow(label = "Duration", value = "%.1fs".format(durationSec))
+                Slider(
+                    value = durationSec,
+                    onValueChange = { durationSec = it },
+                    valueRange = 1f..10f,
+                    enabled = !playing,
+                )
+            }
+        }
+        StaggeredTone(3, reducedMotion = reducedMotion) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { play(true) }, enabled = !playing) {
+                    Text("Play DSP")
+                }
+                OutlinedButton(onClick = { play(false) }, enabled = !playing) {
+                    Text("Play bypass")
+                }
+                OutlinedButton(onClick = ::stop, enabled = playing) {
+                    Text("Stop")
+                }
             }
         }
         if (playing) {
@@ -264,5 +277,22 @@ fun TestToneTab(snackbar: SnackbarHostState) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun StaggeredTone(index: Int, reducedMotion: Boolean, content: @Composable () -> Unit) {
+    if (reducedMotion) {
+        content()
+    } else {
+        val delay = staggeredDelayForIndex(index)
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+            exit = fadeOut(),
+        ) {
+            content()
+        }
     }
 }

@@ -1,6 +1,5 @@
 package com.vipjam.ui
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -50,6 +49,8 @@ import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.EmptyState
 import com.vipjam.ui.components.LoadingState
 import com.vipjam.ui.components.SectionCard
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -74,13 +75,7 @@ fun HomeTab(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val reducedMotion = remember {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f
-        ) == 0f
-    }
+    val reducedMotion = rememberReducedMotion()
     var entered by remember { mutableStateOf(reducedMotion) }
     LaunchedEffect(Unit) { entered = true }
     val masterOn by context.prefs.data
@@ -189,7 +184,7 @@ fun HomeTab(
         if (reducedMotion) {
             content()
         } else {
-            val delay = 30 + 45 * index
+            val delay = staggeredDelayForIndex(index).toInt()
             val spec = tween<Float>(240, delay, LinearOutSlowInEasing)
             val offsetSpec = tween<IntOffset>(240, delay, LinearOutSlowInEasing)
             AnimatedVisibility(

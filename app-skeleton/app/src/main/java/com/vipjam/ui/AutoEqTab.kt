@@ -1,5 +1,11 @@
 package com.vipjam.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,7 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +49,9 @@ import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.EmptyState
+import com.vipjam.ui.components.SectionHeader
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -149,6 +158,7 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
     var previewKey by remember { mutableStateOf<String?>(null) }
     var previewEq by remember { mutableStateOf<ParametricEq?>(null) }
     var previewBands by remember { mutableStateOf(emptyList<Double>()) }
+    val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -229,7 +239,7 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
                     null
                 }
             }
-            message("Saved AutoEq profile")
+            message("Profile downloaded")
             refresh()
         }
     }
@@ -307,7 +317,7 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { Text("AutoEq", style = MaterialTheme.typography.headlineLarge) }
+        item { SectionHeader(title = "AutoEq") }
         item {
             Text(
                 "No bundled headphone index ships in this build: find a profile on autoeq.app, then paste its raw ParametricEQ.txt URL or pick a source + model path. Downloads are cached on-device and searchable below.",
@@ -430,8 +440,9 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
                 }
             }
         }
-        items(shown, key = { it.fileName }) { p ->
-            Card(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(shown, key = { _, it -> it.fileName }) { index, p ->
+            StaggeredAutoEq(index, reducedMotion) {
+                Card(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -488,7 +499,25 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
                         ) { Text("Delete") }
                     }
                 }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaggeredAutoEq(index: Int, reducedMotion: Boolean, content: @Composable () -> Unit) {
+    if (reducedMotion) {
+        content()
+    } else {
+        val delay = staggeredDelayForIndex(index)
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+            exit = fadeOut(),
+        ) {
+            content()
         }
     }
 }

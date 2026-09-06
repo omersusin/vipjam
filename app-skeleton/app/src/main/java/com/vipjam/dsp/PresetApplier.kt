@@ -76,6 +76,35 @@ object PresetApplier {
                 sink.setParam(VipJamDispatcher.P_CONV_ENABLE, if (g.optBoolean("enable")) 1 else 0)
             }.getOrDefault(false)
         } and ok
+        for ((name, pid) in listOf(
+            VipJamEffects.PLAYBACK_GAIN to VipJamDispatcher.P_PGC_ENABLE,
+            VipJamEffects.DDC to VipJamDispatcher.P_DDC_ENABLE,
+            VipJamEffects.DYN_SYS to VipJamDispatcher.P_DYNSYS_ENABLE,
+            VipJamEffects.TUBE to VipJamDispatcher.P_TUBE_ENABLE,
+            VipJamEffects.CURE to VipJamDispatcher.P_CURE_ENABLE,
+            VipJamEffects.ANALOGX to VipJamDispatcher.P_ANALOGX_ENABLE,
+            VipJamEffects.FET to VipJamDispatcher.P_FET_ENABLE,
+            VipJamEffects.FIELD to VipJamDispatcher.P_VHE_ENABLE,
+            VipJamEffects.DIFF to VipJamDispatcher.P_DIFF_ENABLE,
+            VipJamEffects.SPEAKER to VipJamDispatcher.P_SPK_ENABLE,
+        )) {
+            ok = group(obj, name) { g ->
+                val en = runCatching {
+                    sink.setParam(pid, if (g.optBoolean("enable")) 1 else 0)
+                }.getOrDefault(false)
+                val extra = if (name == VipJamEffects.TUBE) {
+                    runCatching {
+                        sink.setParam(
+                            VipJamDispatcher.F_TUBE,
+                            g.optInt("drive", 0).coerceIn(0, 100),
+                        )
+                    }.getOrDefault(false)
+                } else {
+                    true
+                }
+                en and extra
+            } and ok
+        }
         skipUnmapped(obj)
         return ok
     }
@@ -88,6 +117,10 @@ object PresetApplier {
             VipJamEffects.BASS, VipJamEffects.CLARITY -> {
                 require(field == "gain") { "unknown field: $group.$field" }
                 obj.getJSONObject(group).put("gain", value.roundToInt())
+            }
+            VipJamEffects.TUBE -> {
+                require(field == "drive") { "unknown field: $group.$field" }
+                obj.getJSONObject(group).put("drive", value.roundToInt().coerceIn(0, 100))
             }
             VipJamEffects.REVERB -> {
                 require(field in REVERB_FIELDS) { "unknown field: $group.$field" }
@@ -113,6 +146,7 @@ object PresetApplier {
         VipJamEffects.CLARITY,
         VipJamEffects.REVERB,
         VipJamEffects.EQ,
+        VipJamEffects.TUBE,
     )
 
     private val REVERB_FIELDS = setOf("roomSize", "width", "damp")

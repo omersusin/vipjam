@@ -3,7 +3,12 @@ package com.vipjam.ui
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
-import androidx.compose.foundation.clickable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -43,6 +48,11 @@ import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.EmptyState
+import com.vipjam.ui.components.PressableCard
+import com.vipjam.ui.components.SectionHeader
+import com.vipjam.ui.components.StatRow
+import com.vipjam.ui.components.rememberReducedMotion
+import com.vipjam.ui.components.staggeredDelayForIndex
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -110,6 +120,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
     var needsPerm by remember { mutableStateOf(true) }
     var permTick by remember { mutableStateOf(0) }
     var search by remember { mutableStateOf("") }
+    val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -140,11 +151,11 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         scope.launch {
             if (preset == null) {
                 store.clearAppPreset(pkg)
-                message("$label → Default")
+                message("$label set to default")
             } else {
                 try {
                     store.setAppPreset(pkg, preset)
-                    message("$label → $preset")
+                    message("$label linked to $preset")
                 } catch (e: Exception) {
                     message("Link failed: ${e.message}")
                 }
@@ -164,7 +175,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                         context.prefs.edit {
                             it[PARKED_KEY] = encodeParked(parked - pkg)
                         }
-                        message("$label enabled → $restore")
+                        message("$label enabled with $restore")
                     } catch (e: Exception) {
                         message("Enable failed: ${e.message}")
                     }
@@ -209,7 +220,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("App Profiles", style = MaterialTheme.typography.headlineLarge)
+            SectionHeader(title = "App Profiles")
         }
         item {
             Text(
@@ -321,26 +332,20 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                 )
             }
         }
-        items(shown, key = { it.packageName }) { app ->
-            var expanded by remember { mutableStateOf(false) }
-            val assigned = appMap[app.packageName]
-            val isDisabled = assigned == null && parked.containsKey(app.packageName)
-            Box {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = true },
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemsIndexed(shown, key = { _, it -> it.packageName }) { index, app ->
+            StaggeredAppProfile(index, reducedMotion) {
+                var expanded by remember { mutableStateOf(false) }
+                val assigned = appMap[app.packageName]
+                val isDisabled = assigned == null && parked.containsKey(app.packageName)
+                Box {
+                    PressableCard(
+                        onClick = { expanded = true },
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(app.label, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "${app.packageName} → ${assigned ?: "Default"}" +
-                                if (isDisabled) " (disabled)" else "",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        StatRow(
+                            label = app.packageName,
+                            value = (assigned ?: "Default") + if (isDisabled) " (disabled)" else "",
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -372,29 +377,46 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                             }
                         }
                     }
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Default") },
-                        onClick = {
-                            expanded = false
-                            setLinked(app.packageName, app.label, null)
-                        },
-                    )
-                    presetNames.forEach { name ->
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
                         DropdownMenuItem(
-                            text = { Text(name) },
+                            text = { Text("Default") },
                             onClick = {
                                 expanded = false
-                                setLinked(app.packageName, app.label, name)
+                                setLinked(app.packageName, app.label, null)
                             },
                         )
+                        presetNames.forEach { name ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    expanded = false
+                                    setLinked(app.packageName, app.label, name)
+                                },
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaggeredAppProfile(index: Int, reducedMotion: Boolean, content: @Composable () -> Unit) {
+    if (reducedMotion) {
+        content()
+    } else {
+        val delay = staggeredDelayForIndex(index)
+        AnimatedVisibility(
+            visible = true,
+            enter = fadeIn(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) +
+                slideInVertically(tween(240, delayMillis = delay.toInt(), easing = LinearOutSlowInEasing)) { it / 4 },
+            exit = fadeOut(),
+        ) {
+            content()
         }
     }
 }

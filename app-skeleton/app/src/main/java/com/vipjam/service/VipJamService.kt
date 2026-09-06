@@ -598,6 +598,16 @@ class VipJamService : Service() {
             VipJamDispatcher.P_EQ_ENABLE,
             VipJamDispatcher.P_REVERB_ENABLE,
             VipJamDispatcher.P_CONV_ENABLE,
+            VipJamDispatcher.P_PGC_ENABLE,
+            VipJamDispatcher.P_DDC_ENABLE,
+            VipJamDispatcher.P_DYNSYS_ENABLE,
+            VipJamDispatcher.P_TUBE_ENABLE,
+            VipJamDispatcher.P_CURE_ENABLE,
+            VipJamDispatcher.P_ANALOGX_ENABLE,
+            VipJamDispatcher.P_FET_ENABLE,
+            VipJamDispatcher.P_VHE_ENABLE,
+            VipJamDispatcher.P_DIFF_ENABLE,
+            VipJamDispatcher.P_SPK_ENABLE,
         )
 
         private val KNOWN_PARAM_IDS = SINGLE_INT_PARAMS + setOf(
