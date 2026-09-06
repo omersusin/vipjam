@@ -66,6 +66,12 @@ object PresetImporter {
         val keys = obj.keys().asSequence().toSet()
         for (key in keys) {
             if (key in setOf("schemaVersion", "origin", "name", "masterEnable", "route")) continue
+            if (key == "source" || key == "sourceName" || key == "createdAt") {
+                if (!obj.isNull(key)) require(obj.opt(key) is String) { "$key must be a string" }
+                continue
+            }
+            if (key == "sourcePreampDb" || key == "sourceFilters" || key == "sourceText") continue
+            if (key.toIntOrNull() != null) continue
             if (key == "james") {
                 val james = obj.getJSONObject("james")
                 for (stage in james.keys()) {

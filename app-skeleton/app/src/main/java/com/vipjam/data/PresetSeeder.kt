@@ -26,14 +26,24 @@ object PresetSeeder {
             return 0
         }
         var seeded = 0
+        var bundledSeeded = 0
         bundled.forEach { asset ->
             runCatching {
                 context.assets.open("presets/$asset").bufferedReader().use { reader ->
                     store.importText(reader.readText()).getOrThrow()
                 }
+            }.onSuccess { bundledSeeded++; seeded++ }
+        }
+        runCatching {
+            context.assets.list("presets/bank").orEmpty().sorted()
+        }.getOrDefault(emptyList()).forEach { asset ->
+            runCatching {
+                context.assets.open("presets/bank/$asset").bufferedReader().use { reader ->
+                    store.importText(reader.readText()).getOrThrow()
+                }
             }.onSuccess { seeded++ }
         }
-        if (seeded == bundled.size) {
+        if (bundledSeeded == bundled.size) {
             prefs.edit { it[VipJamPrefs.V3_INITIALIZED] = true }
         }
         return seeded

@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
+import com.vipjam.data.PresetImporter
 import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
@@ -75,6 +76,9 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     var renameText by remember { mutableStateOf("") }
     var renameError by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<PresetEntry?>(null) }
+    var overwriteName by remember { mutableStateOf<String?>(null) }
+    var overwriteText by remember { mutableStateOf<String?>(null) }
+    var overwriteIsPaste by remember { mutableStateOf(false) }
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -123,6 +127,13 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
             }
             if (text.isNullOrBlank()) {
                 message("Could not read file")
+                return@launch
+            }
+            val existing = runCatching { PresetImporter.parseV3(text).getOrThrow().name }.getOrNull()
+            if (existing != null && list?.any { it.name == existing } == true) {
+                overwriteName = existing
+                overwriteText = text
+                overwriteIsPaste = false
                 return@launch
             }
             store.importText(text)
@@ -256,7 +267,15 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
         OutlinedButton(
             onClick = {
                 scope.launch {
-                    store.importText(paste.trim())
+                    val text = paste.trim()
+                    val existing = runCatching { PresetImporter.parseV3(text).getOrThrow().name }.getOrNull()
+                    if (existing != null && list?.any { it.name == existing } == true) {
+                        overwriteName = existing
+                        overwriteText = text
+                        overwriteIsPaste = true
+                        return@launch
+                    }
+                    store.importText(text)
                         .onSuccess {
                             message("Imported $it")
                             paste = ""
@@ -270,6 +289,41 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
         ) {
             Text("Import pasted JSON")
         }
+    }
+
+    overwriteName?.let { name ->
+        AlertDialog(
+            onDismissRequest = { overwriteName = null; overwriteText = null },
+            title = { Text("Overwrite $name?") },
+            text = { Text("A preset named \"$name\" already exists. Overwrite it?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val text = overwriteText ?: return@TextButton
+                        val isPaste = overwriteIsPaste
+                        scope.launch {
+                            store.importText(text)
+                                .onSuccess {
+                                    message("Imported $it")
+                                    if (isPaste) {
+                                        paste = ""
+                                        pasteError = null
+                                    }
+                                    overwriteName = null
+                                    overwriteText = null
+                                }
+                                .onFailure {
+                                    if (isPaste) pasteError = it.message
+                                    else message("Invalid preset: ${it.message}")
+                                }
+                        }
+                    },
+                ) { Text("Overwrite") }
+            },
+            dismissButton = {
+                TextButton(onClick = { overwriteName = null; overwriteText = null }) { Text("Cancel") }
+            },
+        )
     }
 
     renameTarget?.let { target ->

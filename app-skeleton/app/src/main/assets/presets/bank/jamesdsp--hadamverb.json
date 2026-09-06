@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 3,
+  "origin": "james",
+  "name": "hadamVerb",
+  "masterEnable": true,
+  "source": "jamesdsp",
+  "sourceName": "hadamVerb.eel",
+  "route": "headset",
+  "james": {
+    "masterswitch": {
+      "limThreshold": -0.1,
+      "limRelease": 60.0,
+      "postGain": 0.0
+    },
+    "compression": {
+      "enable": false,
+      "timeConstant": 0.22,
+      "granularity": 2.0,
+      "tfResolution": 0.0,
+      "freqs": [],
+      "gains": []
+    },
+    "bass": {
+      "enable": false,
+      "maxGain": 5
+    },
+    "tone": {
+      "enable": false,
+      "filterType": 3,
+      "interpolation": 0,
+      "freqs": [],
+      "gains": []
+    },
+    "streq": {
+      "enable": false,
+      "graphicEq": "GraphicEQ: 0.0 0.0;"
+    },
+    "convolver": {
+      "enable": false,
+      "kernelFile": ""
+    },
+    "ddc": {
+      "enable": false,
+      "device": ""
+    },
+    "liveprog": {
+      "enable": true,
+      "scripts": [
+        "hadamVerb.eel"
+      ]
+    },
+    "tube": {
+      "enable": false,
+      "drive": 2.0
+    },
+    "stereowide": {
+      "enable": false,
+      "mode": 60
+    },
+    "bs2b": {
+      "enable": false,
+      "mode": 0
+    },
+    "headphone": {
+      "enable": false,
+      "preset": 15
+    }
+  },
+  "sourceText": "desc: Hadamard Variable Delay Array\n\nslider1:0.2<0.01,1>Base Delay (s)\nslider4:2<0,5>Fb 1\nslider5:2<0,5>Fb 2\nslider8:30<0,60>VLFO cycle A\nslider9:20<0,60>B\nslider12:10<1,20>Factor between arrays\nslider14:0.01<0,0.5>Modulation depth\nslider20:0<-24,24>Gain (dB)\n// ____________________________________\n@init\nslider1=0.2;\nslider4=2;\nslider5=2;\nslider8=30;\nslider9=20;\nslider12=10;\nslider14=0.01;\nslider20=0;\n// _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nfunction HAD()(\n  HAD_NORM = 0.5; // 1/sqrt2 * 1/sqrt2\n  HAD_LM = 65536;   HAD_LM1 = HAD_LM - 1;\n);\n// _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nfunction HAD_init()(\n// delay line tables\n  this.d0 = ad; ad+=HAD_LM;  \n  this.d1 = ad; ad+=HAD_LM;  \n  this.d2 = ad; ad+=HAD_LM;  \n  this.d3 = ad; ad+=HAD_LM;\n);\n// hadamard4 mix x0..3 -> y0.3\nfunction HAD_mix() instance(x0 x1 x2 x3 y0 y1 y2 y3) local(x01 x23)\n(\n  x01 = x0 + x1;   x23 = x2 + x3;      y0 = x01 + x23;  y2 = x01 - x23;\n  x01 = x0 - x1;   x23 = x2 - x3;      y1 = x01 + x23;  y3 = x01 - x23;   \n);\n// _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nfunction HAD_setDelays(ld0 ld1 ld2 ld3)(\n  this.ld0 = ld0;  this.ld1 = ld1;  this.ld2 = ld2;  this.ld3 = ld3;\n);\n// _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nfunction HAD_setFBs(fb0 fb1 fb2 fb3)(\n  this.fb0 = (1 - fb0) * HAD_NORM; \n  this.fb1 = (1 - fb1) * HAD_NORM; \n  this.fb2 = (1 - fb2) * HAD_NORM; \n  this.fb3 = (1 - fb3) * HAD_NORM;\n  this.gi0 = fb0 * HAD_NORM;\n  this.gi1 = fb1 * HAD_NORM;\n  this.gi2 = fb2 * HAD_NORM;\n  this.gi3 = fb3 * HAD_NORM;\n);\n// x>=0 !!\nfunction HAD_interp(x t l)\nlocal(ix0 ix1 a)(\n  ix0 = floor(x);\n  a = x - ix0;\n  ix0 = ix0 % l;\n  ix1 = (ix0 + 1) % l;\n  t[ix0] + a * (t[ix1] - t[ix0]);\n);\nfunction HAD_aProc(in0 in1 in2 in3)\ninstance( d0  d1  d2  d3\n         ld0 ld1 ld2 ld3\n         ldf0 ldf1 ldf2 ldf3\n         fb0 fb1 fb2 fb3 \n         gi0 gi1 gi2 gi3\n          x0  x1  x2  x3 \n          y0  y1  y2  y3 c)\nlocal(cp)\n(\nldf0 += 0.0001 * (ld0 - ldf0);\nldf1 += 0.0001 * (ld1 - ldf1);\nldf2 += 0.0001 * (ld2 - ldf2);\nldf3 += 0.0001 * (ld3 - ldf3);\n// Input and feedback\nd0[c] = fb0 * y0 + in0 * gi0;\nd1[c] = fb1 * y1 + in1 * gi1;\nd2[c] = fb2 * y2 + in2 * gi2;\nd3[c] = fb3 * y3 + in3 * gi3;\n// delay lines output to matrix inputs\ncp = c + HAD_LM;\nx0 = HAD_interp(cp - ldf0, d0, HAD_LM);\nx1 = HAD_interp(cp - ldf1, d1, HAD_LM);\nx2 = HAD_interp(cp - ldf2, d2, HAD_LM);\nx3 = HAD_interp(cp - ldf3, d3, HAD_LM);\n// matrix mix\nthis.HAD_mix();\nc = (c + 1) & HAD_LM1;\n);\nHAD();\nh1.HAD_init();\nh2.HAD_init();\nfunction VLFO_proc()\ninstance(p dp s c)(\n  p += dp;\n  p > $pi ? p -= 2 * $pi;\n  s = sin(p);\n  c = cos(p);\n);\ngain = 2 ^ (slider20 / 6);\nsl4 = 1 / (1 + slider4);\nsl5 = 1 / (1 + slider5);\n_sl12 = 1 / slider12;\nsl0 = srate * slider1;\n//\"chorus\"\nvlfo1.dp = 1.13 * (slider12 / slider8) * 2*$pi / srate;\nvlfo2.dp = 0.90 * (slider12 / slider9) * 2*$pi / srate;\n//\"reverb\"\nvlfo3.dp = (1 / slider8) * 2*$pi / srate;\nvlfo4.dp = (1 / slider9) * 2*$pi / srate;\n// First array, chorus style\nh1.HAD_setFBs(sl4, sl4, 1.17 * sl4, 1.27 * sl4);\n// Second array, reverb style\nh2.HAD_setFBs(sl5, sl5, 1.27 * sl5, 1.30 * sl5);\nd1_0 = 0.3 * sl0 * _sl12;\nd1_1 = 0.4 * sl0 * _sl12;\nd1_2 = 1.5 * sl0 * _sl12;\nd1_3 = 2.0 * sl0 * _sl12;\nd2_0 = 1.13 * sl0;\nd2_1 = 0.83 * sl0;\nd2_2 = 1.32 * sl0;\nd2_3 = 0.57 * sl0;\n@sample\n// chorus unit\n// inputs and feedback from the reverb array\nh1.HAD_aProc( spl0,  spl1, 0.49 * h2.y2, 0.49 * h2.y3);\n// reverb unit\nh2.HAD_aProc(h1.y0, h1.y1, h1.y2, h1.y3);\n// VLFOs\nvlfo1.VLFO_proc();\nvlfo2.VLFO_proc();\nvlfo3.VLFO_proc();\nvlfo4.VLFO_proc();\n// Delay modulation of the chorus delays\nh1.HAD_setDelays(\n  d1_0 * (1 + slider14 * vlfo1.s), \n  d1_1 * (1 + slider14 * vlfo2.s), \n  d1_2 * (1 + slider14 * vlfo1.c), \n  d1_3 * (1 + slider14 * vlfo2.c));\n// Delay modulation of the reverb delays\nh2.HAD_setDelays(\n  d2_0 * (1 + slider14 * vlfo3.s), \n  d2_1 * (1 + slider14 * vlfo4.c), \n  d2_2 * (1 + slider14 * vlfo3.s), \n  d2_3 * (1 + slider14 * vlfo4.c));\n// _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\nspl0 = gain * (h2.y0 + h1.y0 + h1.x0);\nspl1 = gain * (h2.y1 - h1.y1 + h1.x1);\n"
+}

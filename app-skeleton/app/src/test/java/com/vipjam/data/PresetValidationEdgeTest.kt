@@ -133,4 +133,44 @@ class PresetValidationEdgeTest {
         assertTrue(!link.removePrefix(PresetImporter.LINK_SCHEME).contains("="))
         assertEquals(json, PresetImporter.unpackLink(link).getOrThrow())
     }
+
+    @Test
+    fun `source keys accepted`() {
+        val ok = """{"schemaVersion":3,"origin":"viper","name":"x","source":"wavelet","sourceName":"Wavelet"}"""
+        assertTrue(PresetImporter.parseV3(ok).isSuccess)
+    }
+
+    @Test
+    fun `createdAt accepted`() {
+        val ok = """{"schemaVersion":3,"origin":"viper","name":"x","createdAt":"2026-01-01"}"""
+        assertTrue(PresetImporter.parseV3(ok).isSuccess)
+    }
+
+    @Test
+    fun `source keys wrong type rejected`() {
+        val bad = """{"schemaVersion":3,"origin":"viper","name":"x","source":42}"""
+        assertTrue(PresetImporter.parseV3(bad).isFailure)
+    }
+
+    private fun bankResource(name: String): String =
+        javaClass.classLoader!!.getResourceAsStream("presets/bank/$name")!!
+            .bufferedReader().readText()
+
+    @Test
+    fun `bank viper default parses`() {
+        val preset = PresetImporter.parseV3(bankResource("viper-v2--default.json")).getOrThrow()
+        assertTrue(preset.name.isNotBlank())
+    }
+
+    @Test
+    fun `bank viper game parses`() {
+        val preset = PresetImporter.parseV3(bankResource("viper-v2--game-v2.json")).getOrThrow()
+        assertTrue(preset.name.isNotBlank())
+    }
+
+    @Test
+    fun `bank james demo parses`() {
+        val preset = PresetImporter.parseV3(bankResource("jamesdsp--james-headset-demo.json")).getOrThrow()
+        assertTrue(preset.name.isNotBlank())
+    }
 }
