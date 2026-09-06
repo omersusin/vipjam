@@ -50,7 +50,7 @@ fun kindForName(name: String): KernelKind? {
 
 fun parseVdcText(text: String): Result<VdcCoeffs> = runCatching {
     if (!text.contains("SR_44100:")) {
-        val eq = AutoEq.parseParametric(text).getOrThrow()
+        val eq = AutoEq.parseParametric(text)
         return parseVdcText(AutoEq.toVdc(eq))
     }
     val c44 = vdcSection(text, "SR_44100:")

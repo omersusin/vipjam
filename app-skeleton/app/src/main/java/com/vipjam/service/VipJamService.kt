@@ -577,13 +577,16 @@ class VipJamService : Service() {
                             id,
                             VipJamDispatcher.buildScriptAlloc(v0, v1, v2),
                         )
-                    VipJamDispatcher.LIVEPROG_CHUNK -> {
-                        val bytes = raw ?: return false
-                        dispatcher.sendRaw(
-                            id,
-                            VipJamDispatcher.buildScriptChunk(v0, bytes),
-                        )
-                    }
+                    VipJamDispatcher.LIVEPROG_CHUNK ->
+                        if (raw == null) {
+                            Log.w(TAG, "dispatch bulk chunk without bytes skipped")
+                            false
+                        } else {
+                            dispatcher.sendRaw(
+                                id,
+                                VipJamDispatcher.buildScriptChunk(v0, raw),
+                            )
+                        }
                     VipJamDispatcher.LIVEPROG_COMMIT ->
                         dispatcher.sendRaw(
                             id,
