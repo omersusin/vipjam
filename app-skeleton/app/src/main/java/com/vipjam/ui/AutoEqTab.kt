@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -40,8 +42,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.vipjam.autoeq.AutoEq
+import com.vipjam.autoeq.AutoEqApi
 import com.vipjam.autoeq.AutoEqCache
 import com.vipjam.autoeq.AutoEqDownloader
+import com.vipjam.autoeq.AutoEqSearchResult
+import com.vipjam.autoeq.GraphicEq
 import com.vipjam.autoeq.ParametricEq
 import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetStore
@@ -158,6 +163,12 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
     var previewKey by remember { mutableStateOf<String?>(null) }
     var previewEq by remember { mutableStateOf<ParametricEq?>(null) }
     var previewBands by remember { mutableStateOf(emptyList<Double>()) }
+    var apiQuery by remember { mutableStateOf("") }
+    var apiResults by remember { mutableStateOf(emptyList<AutoEqSearchResult>()) }
+    var apiSearching by remember { mutableStateOf(false) }
+    var apiError by remember { mutableStateOf<String?>(null) }
+    var apiSearched by remember { mutableStateOf(false) }
+    var apiApplyingId by remember { mutableStateOf<String?>(null) }
     val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
@@ -313,6 +324,64 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
         }
     }
 
+    fun doApiSearch() {
+        val q = apiQuery.trim()
+        if (q.isEmpty()) {
+            apiError = null
+            apiResults = emptyList()
+            apiSearched = false
+            return
+        }
+        if (apiSearching) return
+        apiSearching = true
+        apiError = null
+        scope.launch {
+            val results = try {
+                withContext(Dispatchers.IO) {
+                    AutoEqApi.search(AutoEqApi.DEFAULT_BASE_URL, q)
+                }
+            } catch (e: Exception) {
+                apiSearching = false
+                apiSearched = true
+                apiResults = emptyList()
+                apiError = "Search failed: ${e.message ?: "network error"}"
+                return@launch
+            }
+            apiSearching = false
+            apiSearched = true
+            apiResults = results.sortedBy { it.rank }
+            if (results.isEmpty()) apiError = null
+        }
+    }
+
+    fun applyApiResult(result: AutoEqSearchResult) {
+        if (apiApplyingId != null) return
+        apiApplyingId = result.id
+        scope.launch {
+            val text = try {
+                withContext(Dispatchers.IO) {
+                    AutoEqApi.fetchResultText(AutoEqApi.DEFAULT_BASE_URL, result.id)
+                }
+            } catch (e: Exception) {
+                apiApplyingId = null
+                message("Download failed: ${e.message ?: "network error"}")
+                return@launch
+            }
+            val points = try {
+                withContext(Dispatchers.Default) { GraphicEq.parse(text) }
+            } catch (e: Exception) {
+                apiApplyingId = null
+                message("Downloaded but invalid GraphicEQ: ${e.message}")
+                return@launch
+            }
+            val bands = withContext(Dispatchers.Default) {
+                GraphicEq.sampleBands(points, EqCurveMath.BAND_FREQS_HZ)
+            }
+            apiApplyingId = null
+            applyCurve(result.name, bands)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -322,6 +391,93 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
             Text(
                 "No bundled headphone index ships in this build: find a profile on autoeq.app, then paste its raw ParametricEQ.txt URL or pick a source + model path. Downloads are cached on-device and searchable below.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        item {
+            Text(
+                "Search online",
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = apiQuery,
+                onValueChange = { apiQuery = it },
+                label = { Text("Search AutoEq (e.g. HD 600)") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { doApiSearch() },
+                    enabled = !apiSearching && apiQuery.trim().isNotEmpty(),
+                ) { Text(if (apiSearching) "Searching…" else "Search") }
+                if (apiSearching) {
+                    CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                }
+            }
+        }
+        if (apiError != null) {
+            item {
+                Text(
+                    apiError ?: "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        if (!apiSearched && apiResults.isEmpty() && apiQuery.isBlank()) {
+            item {
+                Text(
+                    "Type a headphone model above and tap Search to fetch its EQ curve.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else if (apiSearched && apiResults.isEmpty() && apiError == null && !apiSearching) {
+            item {
+                Text(
+                    "No results for \"${apiQuery.trim()}\".",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        itemsIndexed(apiResults, key = { _, it -> it.id }) { index, r ->
+            StaggeredAutoEq(index, reducedMotion) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(r.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            r.source.ifBlank { "unknown source" },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = { applyApiResult(r) },
+                                enabled = apiApplyingId == null,
+                            ) {
+                                Text(if (apiApplyingId == r.id) "Applying…" else "Apply")
+                            }
+                            if (apiApplyingId == r.id) {
+                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Text(
+                "Measurements: AutoEq (jaakkopasanen)",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
