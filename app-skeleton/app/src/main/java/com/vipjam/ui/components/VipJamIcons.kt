@@ -20,7 +20,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.vipjam.ui.TabPage
+import com.vipjam.ui.TopDestinations
 import com.vipjam.ui.theme.VipJamTheme
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 internal fun DestinationGlyph(
@@ -185,6 +188,113 @@ internal fun DestinationGlyph(
                     cap = StrokeCap.Round
                 )
             }
+            TabPage.Home -> {
+                val roof = Path().apply {
+                    moveTo(3.5.dp.toPx(), 11.dp.toPx())
+                    lineTo(12.dp.toPx(), 4.dp.toPx())
+                    lineTo(20.5.dp.toPx(), 11.dp.toPx())
+                }
+                drawPath(
+                    path = roof,
+                    color = tint,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+                val body = Path().apply {
+                    moveTo(6.5.dp.toPx(), 10.dp.toPx())
+                    lineTo(6.5.dp.toPx(), 19.5.dp.toPx())
+                    lineTo(17.5.dp.toPx(), 19.5.dp.toPx())
+                    lineTo(17.5.dp.toPx(), 10.dp.toPx())
+                }
+                drawPath(
+                    path = body,
+                    color = tint,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+            TabPage.Sound -> {
+                val speaker = Path().apply {
+                    moveTo(3.dp.toPx(), 9.5.dp.toPx())
+                    lineTo(8.dp.toPx(), 9.5.dp.toPx())
+                    lineTo(13.dp.toPx(), 5.dp.toPx())
+                    lineTo(13.dp.toPx(), 19.dp.toPx())
+                    lineTo(8.dp.toPx(), 14.5.dp.toPx())
+                    lineTo(3.dp.toPx(), 14.5.dp.toPx())
+                    close()
+                }
+                drawPath(path = speaker, color = tint)
+                drawArc(
+                    color = tint,
+                    startAngle = -55f,
+                    sweepAngle = 110f,
+                    useCenter = false,
+                    topLeft = Offset(13.5.dp.toPx(), 7.5.dp.toPx()),
+                    size = Size(7.dp.toPx(), 9.dp.toPx()),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+                drawArc(
+                    color = tint,
+                    startAngle = -55f,
+                    sweepAngle = 110f,
+                    useCenter = false,
+                    topLeft = Offset(12.dp.toPx(), 5.dp.toPx()),
+                    size = Size(10.dp.toPx(), 14.dp.toPx()),
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+            }
+            TabPage.Lab -> {
+                val flask = Path().apply {
+                    moveTo(10.dp.toPx(), 3.dp.toPx())
+                    lineTo(10.dp.toPx(), 8.5.dp.toPx())
+                    lineTo(5.dp.toPx(), 18.5.dp.toPx())
+                    lineTo(19.dp.toPx(), 18.5.dp.toPx())
+                    lineTo(14.dp.toPx(), 8.5.dp.toPx())
+                    lineTo(14.dp.toPx(), 3.dp.toPx())
+                }
+                drawPath(
+                    path = flask,
+                    color = tint,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(7.5.dp.toPx(), 15.5.dp.toPx()),
+                    end = Offset(16.5.dp.toPx(), 15.5.dp.toPx()),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+                drawCircle(
+                    color = tint,
+                    radius = 1.4.dp.toPx(),
+                    center = Offset(12.dp.toPx(), 12.dp.toPx())
+                )
+            }
+            TabPage.System -> {
+                drawCircle(
+                    color = tint,
+                    radius = 5.5.dp.toPx(),
+                    center = center,
+                    style = Stroke(width = stroke)
+                )
+                val toothInner = 7.dp.toPx()
+                val toothOuter = 9.5.dp.toPx()
+                for (i in 0 until 8) {
+                    val angle = (kotlin.math.PI / 4 * i).toFloat()
+                    val dx = cos(angle)
+                    val dy = sin(angle)
+                    drawLine(
+                        color = tint,
+                        start = Offset(center.x + dx * toothInner, center.y + dy * toothInner),
+                        end = Offset(center.x + dx * toothOuter, center.y + dy * toothOuter),
+                        strokeWidth = stroke,
+                        cap = StrokeCap.Round
+                    )
+                }
+                drawCircle(
+                    color = tint,
+                    radius = 1.8.dp.toPx(),
+                    center = center
+                )
+            }
         }
     }
 }
@@ -197,7 +307,7 @@ private fun DestinationGlyphPreview() {
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TabPage.entries.forEach { tab ->
+            TopDestinations.forEach { tab ->
                 DestinationGlyph(
                     destination = tab,
                     contentDescription = tab.label,

@@ -122,7 +122,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Presets", style = MaterialTheme.typography.headlineLarge)
@@ -143,14 +143,16 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
             list.isEmpty() -> Text(
                 "No presets yet. Paste JSON below or import a file to add one.",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             filtered.isEmpty() -> Text(
                 "No presets match \"$query\".",
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             else -> LazyColumn(
                 modifier = Modifier.weight(1f, fill = false),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 items(filtered, key = { it.name }) { entry ->
                     PresetRow(
@@ -328,7 +330,7 @@ fun PresetRow(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -337,10 +339,10 @@ fun PresetRow(
             ) {
                 Text(entry.name, style = MaterialTheme.typography.titleMedium)
                 if (isActive) {
-                    Text("Active", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = onApply) { Text("Apply") }
                 OutlinedButton(onClick = onRename) { Text("Rename") }
                 OutlinedButton(onClick = onShare) { Text("Share") }

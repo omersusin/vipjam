@@ -304,14 +304,15 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item { Text("AutoEq", style = MaterialTheme.typography.headlineLarge) }
         item {
             Text(
                 "No bundled headphone index ships in this build: find a profile on autoeq.app, then paste its raw ParametricEQ.txt URL or pick a source + model path. Downloads are cached on-device and searchable below.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         item {
@@ -324,7 +325,7 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
             )
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box {
                     OutlinedButton(onClick = { sourceMenu = true }) {
                         Text(source)
@@ -357,7 +358,8 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
             Text(
                 if (url.isEmpty()) "Enter a URL or a model path to build one."
                 else url,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         item {
@@ -388,7 +390,7 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
             item {
                 Text(
                     "No headphones match \"${search.trim()}\".",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -406,10 +408,11 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
                         )
                         Text(
                             "Preamp ${previewEq!!.preampDb} dB, ${previewEq!!.filters.size} filters, sampled at 48 kHz",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         AutoEqPreviewCurve(previewBands)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { applyCurve(previewKey ?: "", previewBands) }) {
                                 Text("Apply to EQ")
                             }
@@ -434,8 +437,12 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(p.key, style = MaterialTheme.typography.titleMedium)
-                    Text(p.summary, style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        p.summary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { preview(p) }) { Text("Preview") }
                         OutlinedButton(
                             onClick = {

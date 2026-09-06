@@ -236,7 +236,7 @@ fun StatusTab(store: PresetStore) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(
@@ -252,12 +252,12 @@ fun StatusTab(store: PresetStore) {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Driver", style = MaterialTheme.typography.titleMedium)
                 when {
                     currentProbe == null || currentProbe.probing -> Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         CircularProgressIndicator()
@@ -276,14 +276,16 @@ fun StatusTab(store: PresetStore) {
                         Text(
                             "Version: ${currentProbe.versionCode ?: "unknown (driver returned no version data)"}",
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
                             "Version name: unknown (GET_VERSION_NAME returns raw bytes; getParam only decodes int)",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
                             "Probe latency: ${currentProbe.latencyMs} ms",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                         )
                         if (currentProbe.failWhy != null) {
                             Text(
@@ -296,18 +298,23 @@ fun StatusTab(store: PresetStore) {
                 }
                 Text(
                     "Source: AudioEffect open + GET_VERSION_CODE probe",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Runtime", style = MaterialTheme.typography.titleMedium)
                 if (prefsData == null) {
-                    Text("Loading…", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Loading…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 } else {
                     Text(
                         "Master: ${masterOn?.let { if (it) "on" else "off" } ?: "unknown (pref missing)"}",
@@ -340,14 +347,15 @@ fun StatusTab(store: PresetStore) {
                 }
                 Text(
                     "Sources: DataStore prefs, route map, AudioManager outputs",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Effect chain", style = MaterialTheme.typography.titleMedium)
                 when {
@@ -376,14 +384,16 @@ fun StatusTab(store: PresetStore) {
                             Text(
                                 if (paramId == null) "device: unknown (no probe id for this stage)"
                                 else "device: ${onOffUnknown(live)}",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
                 }
                 Text(
                     "Sources: stored preset enables + live P_*_ENABLE probes where ids exist",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

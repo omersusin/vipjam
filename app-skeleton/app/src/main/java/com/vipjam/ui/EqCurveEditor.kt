@@ -3,6 +3,7 @@ package com.vipjam.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -111,9 +112,16 @@ fun EqCurveEditorCard(
     } ?: "Drag a dot up or down to adjust that band"
 
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text("EQ curve", style = MaterialTheme.typography.titleMedium)
-            Text(selectedText, style = MaterialTheme.typography.labelMedium)
+            Text(
+                selectedText,
+                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()

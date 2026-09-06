@@ -193,32 +193,44 @@ fun TestToneTab(snackbar: SnackbarHostState) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Test tone", style = MaterialTheme.typography.headlineLarge)
-        Text("Frequency %.0f Hz".format(freq))
+        Text(
+            "Frequency %.0f Hz".format(freq),
+            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurface
+        )
         Slider(
             value = freq,
             onValueChange = { freq = it },
             valueRange = 30f..4000f,
             enabled = !playing,
         )
-        Text("Gain %.0f %%".format(gain))
+        Text(
+            "Gain %.0f %%".format(gain),
+            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurface
+        )
         Slider(
             value = gain,
             onValueChange = { gain = it },
             valueRange = 0f..100f,
             enabled = !playing,
         )
-        Text("Duration %.1fs".format(durationSec))
+        Text(
+            "Duration %.1fs".format(durationSec),
+            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurface
+        )
         Slider(
             value = durationSec,
             onValueChange = { durationSec = it },
             valueRange = 1f..10f,
             enabled = !playing,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { play(true) }, enabled = !playing) {
                 Text("Play DSP")
             }
@@ -232,11 +244,15 @@ fun TestToneTab(snackbar: SnackbarHostState) {
         if (playing) {
             Text(
                 liveRms?.let { "Playing… live RMS %.3f".format(it) } ?: "Playing…",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                 color = MaterialTheme.colorScheme.primary,
             )
         } else if (lastRms != null) {
-            Text(lastRms!!, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                lastRms!!,
+                style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         } else {
             EmptyState(
                 title = "No tone played yet",
@@ -245,7 +261,8 @@ fun TestToneTab(snackbar: SnackbarHostState) {
         }
         Text(
             "Streams a sine through the real fused engine (DSP) or raw (bypass). Stop releases the AudioTrack immediately.",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

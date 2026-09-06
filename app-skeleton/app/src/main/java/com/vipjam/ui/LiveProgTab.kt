@@ -95,7 +95,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -104,12 +104,12 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         item {
             Text(
                 "No scripting engine ships in this build — Run validates the script and queues it only. Nothing is executed.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         item {
-            Text("Examples", style = MaterialTheme.typography.titleMedium)
+            Text("Examples", style = MaterialTheme.typography.headlineSmall)
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -149,13 +149,23 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         }
         item {
             if (errors.isEmpty() && script.isNotBlank()) {
-                Text("Valid", color = MaterialTheme.colorScheme.primary)
+                Text(
+                    "Valid",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             } else {
-                errors.forEach { Text(it, color = MaterialTheme.colorScheme.error) }
+                errors.forEach {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { runScript(name, script) },
                     enabled = script.isNotBlank(),
@@ -197,7 +207,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                         "Output" + (lastRun.ifBlank { "" }.let { if (it.isEmpty()) "" else ": $it" }),
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Text("stdout", style = MaterialTheme.typography.labelMedium)
+                    Text("stdout", style = MaterialTheme.typography.labelSmall)
                     Text(
                         stdout.ifBlank { "(no output yet — press Run)" },
                         style = MaterialTheme.typography.bodySmall.copy(
@@ -206,7 +216,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                         color = if (stdout.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.onSurface,
                     )
-                    Text("stderr", style = MaterialTheme.typography.labelMedium)
+                    Text("stderr", style = MaterialTheme.typography.labelSmall)
                     Text(
                         stderr.ifBlank { "(no errors)" },
                         style = MaterialTheme.typography.bodySmall.copy(
@@ -221,7 +231,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         item {
             Text(
                 "Run queue (${queue.size})",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.headlineSmall,
             )
         }
         if (queue.isEmpty()) {
@@ -234,18 +244,22 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         } else {
             items(queue, key = { it.atMillis to it.name }) { q ->
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(q.name, style = MaterialTheme.typography.titleMedium)
                         Text(
                             "${timeOf(q.atMillis)} — ${q.status}",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
         }
         item {
-            Text("Saved scripts (${entries.size})", style = MaterialTheme.typography.titleMedium)
+            Text("Saved scripts (${entries.size})", style = MaterialTheme.typography.headlineSmall)
         }
         if (entries.isEmpty()) {
             item {
@@ -265,7 +279,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                     val entryErrors = LiveProgScripts.validate(entry.script)
                     Text(
                         if (entryErrors.isEmpty()) "Valid" else entryErrors.joinToString("; "),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = if (entryErrors.isEmpty()) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.error,
                     )
@@ -277,7 +291,7 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                             ),
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
                                 expanded = if (expanded == entry.name) null else entry.name

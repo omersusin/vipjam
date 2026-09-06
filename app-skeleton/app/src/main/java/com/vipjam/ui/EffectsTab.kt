@@ -387,7 +387,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item(key = "hero") {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -397,7 +397,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Master", style = MaterialTheme.typography.titleLarge)
+                            Text("Master", style = MaterialTheme.typography.headlineSmall)
                             val status = if (driverProbing) {
                                 "Driver probing…"
                             } else {
@@ -405,7 +405,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                             }
                             Text(
                                 status,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = if (!driverProbing && driverOk) {
                                     MaterialTheme.colorScheme.primary
                                 } else if (!driverProbing) {
@@ -417,7 +417,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                             if (!masterOn && !driverProbing && driverOk) {
                                 Text(
                                     "Bypassed — enable to hear effects",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -431,7 +431,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                         ) {
                             Text(
                                 "Install the audio driver, then retry",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
                             )
@@ -460,7 +460,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                             if (option == profile) {
                                 Text(
                                     "active",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
                             } else {
@@ -480,7 +480,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             CircularProgressIndicator()
                             Text(
@@ -512,7 +512,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 item(key = "editing") {
                     Text(
                         "Editing: ${active.name}",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.headlineSmall,
                     )
                 }
                 when {
@@ -529,7 +529,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                             Card(modifier = Modifier.fillMaxWidth()) {
                                 Column(
                                     modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
@@ -610,7 +610,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(
                             modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -620,7 +620,7 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
                                     )
                                     Text(
                                         groupBlurb(group),
-                                        style = MaterialTheme.typography.labelMedium,
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -692,13 +692,14 @@ private fun DebouncedSliderRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             Text(
                 valueLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Slider(

@@ -162,7 +162,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         SectionCard(title = "Root status") {
@@ -180,7 +180,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
                 if (!canFlash) {
                     Text(
                         "Grant root access and install Magisk, KernelSU, or APatch to flash the module.",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -282,12 +282,13 @@ fun ModuleTab(snackbar: SnackbarHostState) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 320.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         items(flashLog) { line ->
                             Text(
                                 line.ifBlank { " " },
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }

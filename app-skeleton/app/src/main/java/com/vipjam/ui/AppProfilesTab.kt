@@ -205,7 +205,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
@@ -214,13 +214,18 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         item {
             Text(
                 "Links are written through AppProfileStore.setAppPreset / clearAppPreset — the same map AppProfileMonitor reads before applying via VipJamService.applyPreset.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Auto-switch", modifier = Modifier.weight(1f))
+                Text(
+                    "Auto-switch",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
                 Switch(
                     checked = monitorEnabled,
                     onCheckedChange = { scope.launch { store.setMonitorEnabled(it) } },
@@ -229,7 +234,12 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Headphones only", modifier = Modifier.weight(1f))
+                Text(
+                    "Headphones only",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
                 Switch(
                     checked = headphoneOnly,
                     onCheckedChange = { scope.launch { store.setHeadphoneOnly(it) } },
@@ -241,13 +251,13 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
                             "Usage access needed for auto-switch.",
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
                                 onClick = {
                                     try {
@@ -270,7 +280,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
             }
         } else {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { permTick++ }) {
                         Text("Refresh")
                     }
@@ -290,7 +300,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
             item {
                 Text(
                     "No presets installed yet — linking is disabled until a preset exists.",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
@@ -306,7 +316,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
             item {
                 Text(
                     "No apps match \"${search.trim()}\".",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -329,15 +339,16 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                         Text(
                             "${app.packageName} → ${assigned ?: "Default"}" +
                                 if (isDisabled) " (disabled)" else "",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
                                 if (isDisabled) "Disabled" else "Enabled",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.weight(1f),
                             )
                             Switch(
@@ -347,7 +358,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                                 },
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { expanded = true }) {
                                 Text("Link preset")
                             }
