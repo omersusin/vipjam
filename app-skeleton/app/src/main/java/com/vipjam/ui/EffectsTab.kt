@@ -1,5 +1,11 @@
 package com.vipjam.ui
 
+import android.content.Context
+import android.media.AudioManager
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearOutSlowInEasing
@@ -18,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
@@ -49,6 +56,11 @@ import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
+import com.vipjam.kernel.KernelKind
+import com.vipjam.kernel.KernelStore as StagedKernels
+import com.vipjam.kernel.StagedKernel
+import com.vipjam.kernel.convPush
+import com.vipjam.kernel.ddcStep
 import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.DebouncedSliderRow
 import com.vipjam.ui.components.EffectGlyph
@@ -59,8 +71,10 @@ import com.vipjam.ui.components.StripChevron
 import com.vipjam.ui.components.chainAnimateSpec
 import com.vipjam.ui.components.consoleStaggerDelay
 import com.vipjam.ui.components.rememberReducedMotion
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import kotlin.math.roundToInt
 
@@ -206,8 +220,8 @@ internal fun groupStatusLine(group: String, settingsJson: String): String {
         VipJamEffects.TUBE -> "Drive ${g.optInt("drive", 0)}%"
         VipJamEffects.MASTER_LIMITER -> "Ceiling ${g.optInt("threshold", 100)}%"
         VipJamEffects.CURE -> "Mode ${g.optInt("crossfeedPreset", 0)}"
-        VipJamEffects.CONVOLVER -> "Impulse active"
-        VipJamEffects.DDC -> "Correction active"
+        VipJamEffects.CONVOLVER -> g.optString("kernelFile", "").ifBlank { "Impulse active" }
+        VipJamEffects.DDC -> g.optString("device", "").ifBlank { "Correction active" }
         else -> groupBlurb(group)
     }
 }
@@ -1004,6 +1018,12 @@ fun HybridChainSection(
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        if (group == VipJamEffects.CONVOLVER) {
+                                            ConvolverKernelBody(store = store, active = active, snackbar = snackbar)
+                                        }
+                                        if (group == VipJamEffects.DDC) {
+                                            DdcKernelBody(store = store, active = active, snackbar = snackbar)
+                                        }
                                     } else if (specs.isEmpty()) {
                                         Text(
                                             "No band data in this preset",
@@ -1051,5 +1071,323 @@ fun HybridChainSection(
                 card()
             }
         }
+    }
+}
+
+internal fun outputSampleRate(context: Context): Int {
+    return try {
+        val manager = context.getSystemService(AudioManager::class.java) ?: return 48000
+        manager.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
+    } catch (_: Exception) {
+        48000
+    }
+}
+
+internal fun displayNameOf(context: Context, uri: Uri): String {
+    try {
+        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val name = cursor.getString(0)
+                if (!name.isNullOrBlank()) return name
+            }
+        }
+    } catch (_: Exception) {
+    }
+    return uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: "kernel"
+}
+
+internal suspend fun setPresetRef(
+    store: PresetStore,
+    active: PresetEntry,
+    group: String,
+    field: String,
+    value: String,
+    snackbar: SnackbarHostState,
+) {
+    val latest = try {
+        store.entries.first().find { it.name == active.name }?.settingsJson
+    } catch (_: Exception) {
+        null
+    } ?: active.settingsJson
+    val updated = runCatching {
+        val obj = JSONObject(latest)
+        obj.getJSONObject(group).put(field, value)
+        obj.toString()
+    }.getOrElse {
+        snackbar.showSnackbar("Edit failed: ${it.message}")
+        return
+    }
+    store.save(PresetEntry(active.name, updated))
+        .onSuccess { snackbar.showSnackbar("Saved to ${active.name}") }
+        .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+}
+
+@Composable
+private fun KernelRow(
+    item: StagedKernel,
+    meta: String,
+    selected: Boolean,
+    busy: Boolean,
+    useLabel: String,
+    pushLabel: String,
+    onUse: () -> Unit,
+    onPush: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            (if (selected) "[active] " else "") + item.displayName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            meta,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TextButton(onClick = onUse, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(useLabel)
+            }
+            TextButton(onClick = onPush, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(pushLabel)
+            }
+            TextButton(onClick = onDelete, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text("Delete")
+            }
+        }
+    }
+}
+
+@Composable
+internal fun ConvolverKernelBody(store: PresetStore, active: PresetEntry, snackbar: SnackbarHostState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val kernels = remember { StagedKernels(context.applicationContext) }
+    var staged by remember { mutableStateOf(listOf<StagedKernel>()) }
+    var meta by remember { mutableStateOf(mapOf<String, String>()) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableStateOf<Float?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val deviceRate = remember { outputSampleRate(context) }
+    val selected = remember(active.settingsJson) {
+        runCatching {
+            JSONObject(active.settingsJson).optJSONObject(VipJamEffects.CONVOLVER)?.optString("kernelFile").orEmpty()
+        }.getOrDefault("")
+    }
+
+    fun refresh() {
+        scope.launch {
+            val items = withContext(Dispatchers.IO) {
+                kernels.list().filter { it.kind == KernelKind.WAV || it.kind == KernelKind.IRS }
+            }
+            staged = items
+            meta = withContext(Dispatchers.IO) {
+                items.associate { it.fileName to kernels.probeMeta(it.fileName, deviceRate).getOrDefault("Unreadable file") }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val name = withContext(Dispatchers.IO) { displayNameOf(context, uri) }
+            val res = withContext(Dispatchers.IO) { kernels.stage(uri, name) }
+            res.onSuccess {
+                refresh()
+                snackbar.showSnackbar("Staged ${it.displayName}")
+            }.onFailure { snackbar.showSnackbar("Stage failed: ${it.message}") }
+        }
+    }
+
+    fun push(item: StagedKernel) {
+        if (busy != null) return
+        scope.launch {
+            busy = item.fileName
+            error = null
+            progress = 0f
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    val pcm = kernels.readKernelPcm(item.fileName).getOrThrow()
+                    convPush(pcm.samples, pcm.channels, pcm.sampleRate, deviceRate).getOrThrow()
+                }
+            }
+            res.onSuccess { plan ->
+                if (plan.rateMismatch) {
+                    error = "Rate ${plan.sampleRate} Hz vs device $deviceRate Hz, not resampled"
+                }
+                plan.steps.forEachIndexed { i, step ->
+                    VipJamService.dispatchBulk(context, step.id, step.values, step.v0, step.v1, step.v2)
+                    progress = (i + 1).toFloat() / plan.steps.size
+                }
+                snackbar.showSnackbar("Kernel pushed, ${plan.totalFloats} floats in ${plan.steps.size} steps")
+            }.onFailure {
+                error = it.message
+                snackbar.showSnackbar("Push failed: ${it.message}")
+            }
+            busy = null
+            progress = null
+        }
+    }
+
+    TextButton(onClick = { picker.launch("audio/*") }, modifier = Modifier.heightIn(min = 48.dp)) {
+        Text("Pick kernel (.wav, .irs)")
+    }
+    if (progress != null) {
+        LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth())
+    }
+    if (error != null) {
+        Text(error ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+    }
+    if (staged.isEmpty()) {
+        Text(
+            "No staged kernels",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    staged.forEach { item ->
+        KernelRow(
+            item = item,
+            meta = meta[item.fileName] ?: "",
+            selected = selected == item.fileName,
+            busy = busy != null,
+            useLabel = "Use",
+            pushLabel = "Push",
+            onUse = {
+                scope.launch {
+                    setPresetRef(store, active, VipJamEffects.CONVOLVER, "kernelFile", item.fileName, snackbar)
+                }
+            },
+            onPush = { push(item) },
+            onDelete = {
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { kernels.delete(item.fileName) }
+                    if (ok) {
+                        refresh()
+                        snackbar.showSnackbar("Deleted")
+                    } else {
+                        snackbar.showSnackbar("Delete failed")
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+internal fun DdcKernelBody(store: PresetStore, active: PresetEntry, snackbar: SnackbarHostState) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val kernels = remember { StagedKernels(context.applicationContext) }
+    var staged by remember { mutableStateOf(listOf<StagedKernel>()) }
+    var meta by remember { mutableStateOf(mapOf<String, String>()) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val deviceRate = remember { outputSampleRate(context) }
+    val selected = remember(active.settingsJson) {
+        runCatching {
+            JSONObject(active.settingsJson).optJSONObject(VipJamEffects.DDC)?.optString("device").orEmpty()
+        }.getOrDefault("")
+    }
+
+    fun refresh() {
+        scope.launch {
+            val items = withContext(Dispatchers.IO) {
+                kernels.list().filter { it.kind == KernelKind.VDC }
+            }
+            staged = items
+            meta = withContext(Dispatchers.IO) {
+                items.associate { it.fileName to kernels.probeMeta(it.fileName, deviceRate).getOrDefault("Unreadable file") }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) { refresh() }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val name = withContext(Dispatchers.IO) { displayNameOf(context, uri) }
+            val res = withContext(Dispatchers.IO) { kernels.stage(uri, name) }
+            res.onSuccess {
+                refresh()
+                snackbar.showSnackbar("Staged ${it.displayName}")
+            }.onFailure { snackbar.showSnackbar("Stage failed: ${it.message}") }
+        }
+    }
+
+    fun apply(item: StagedKernel) {
+        if (busy) return
+        scope.launch {
+            busy = true
+            error = null
+            val res = withContext(Dispatchers.IO) {
+                runCatching {
+                    val text = kernels.readVdcText(item.fileName).getOrThrow()
+                    ddcStep(text).getOrThrow()
+                }
+            }
+            res.onSuccess { step ->
+                VipJamService.dispatchBulk(context, step.id, step.values, step.v0, step.v1, step.v2)
+                snackbar.showSnackbar("DDC applied, ${step.values.size / 2} coeffs per rate")
+            }.onFailure {
+                error = it.message
+                snackbar.showSnackbar("Apply failed: ${it.message}")
+            }
+            busy = false
+        }
+    }
+
+    TextButton(onClick = { picker.launch("*/*") }, modifier = Modifier.heightIn(min = 48.dp)) {
+        Text("Pick correction (.vdc)")
+    }
+    if (busy) {
+        LinearProgressIndicator(progress = { 0f }, modifier = Modifier.fillMaxWidth())
+    }
+    if (error != null) {
+        Text(error ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+    }
+    if (staged.isEmpty()) {
+        Text(
+            "No staged corrections",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    staged.forEach { item ->
+        KernelRow(
+            item = item,
+            meta = meta[item.fileName] ?: "",
+            selected = selected == item.fileName,
+            busy = busy,
+            useLabel = "Use",
+            pushLabel = "Apply",
+            onUse = {
+                scope.launch {
+                    setPresetRef(store, active, VipJamEffects.DDC, "device", item.fileName, snackbar)
+                }
+            },
+            onPush = { apply(item) },
+            onDelete = {
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { kernels.delete(item.fileName) }
+                    if (ok) {
+                        refresh()
+                        snackbar.showSnackbar("Deleted")
+                    } else {
+                        snackbar.showSnackbar("Delete failed")
+                    }
+                }
+            },
+        )
     }
 }

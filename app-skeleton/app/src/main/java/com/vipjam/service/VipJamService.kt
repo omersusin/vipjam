@@ -396,11 +396,16 @@ class VipJamService : Service() {
                     } catch (_: Exception) {
                         null
                     } ?: floatArrayOf()
+                    val v0 = intent.getIntExtra(EXTRA_PARAM_V0, 0)
+                    val v1 = intent.getIntExtra(EXTRA_PARAM_V1, 0)
+                    val v2 = intent.getIntExtra(EXTRA_PARAM_V2, 0)
                     scope.launch {
                         try {
-                            dispatchBulkNow(id, values)
+                            dispatchBulkNow(id, values, v0, v1, v2)
                         } catch (_: Exception) {
                         }
+                    }
+                }
                     }
                 }
             }
@@ -523,7 +528,7 @@ class VipJamService : Service() {
         }
     }
 
-    private fun dispatchBulkNow(id: Int, values: FloatArray) {
+    private fun dispatchBulkNow(id: Int, values: FloatArray, v0: Int, v1: Int, v2: Int) {
         try {
             if (id !in KNOWN_PARAM_IDS || id in SINGLE_INT_PARAMS) {
                 Log.w(TAG, "dispatch bulk with unknown id skipped: $id")
@@ -534,7 +539,24 @@ class VipJamService : Service() {
                     Log.w(TAG, "dispatch bulk: driver unavailable")
                     return
                 }
-                dispatcher.sendFloatArray(id, values)
+                when (id) {
+                    VipJamDispatcher.CONV_PREP_CLASSIC, VipJamDispatcher.CONV_PREP_NEW ->
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildKernelPrepare(v0, v1, v2),
+                        )
+                    VipJamDispatcher.CONV_CHUNK_CLASSIC, VipJamDispatcher.CONV_CHUNK_NEW ->
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildKernelChunk(v0, values),
+                        )
+                    VipJamDispatcher.CONV_COMMIT_CLASSIC, VipJamDispatcher.CONV_COMMIT_NEW ->
+                        dispatcher.sendRaw(
+                            id,
+                            VipJamDispatcher.buildKernelCommit(v0, v1, v2),
+                        )
+                    else -> dispatcher.sendFloatArray(id, values)
+                }
             }
             if (!ok) Log.w(TAG, "dispatch bulk failed: id=$id")
         } catch (_: Exception) {
@@ -703,12 +725,15 @@ class VipJamService : Service() {
             }
         }
 
-        fun dispatchBulk(context: Context, id: Int, values: FloatArray) {
+        fun dispatchBulk(context: Context, id: Int, values: FloatArray, v0: Int = 0, v1: Int = 0, v2: Int = 0) {
             try {
                 val intent = Intent(context, VipJamService::class.java).apply {
                     action = ACTION_DISPATCH_BULK
                     putExtra(EXTRA_PARAM_ID, id)
                     putExtra(EXTRA_PARAM_VALUES, values)
+                    putExtra(EXTRA_PARAM_V0, v0)
+                    putExtra(EXTRA_PARAM_V1, v1)
+                    putExtra(EXTRA_PARAM_V2, v2)
                 }
                 ContextCompat.startForegroundService(context, intent)
             } catch (e: Exception) {

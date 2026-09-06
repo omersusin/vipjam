@@ -73,6 +73,9 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
     override fun setParam(id: Int, v0: Int, v1: Int, v2: Int): Boolean =
         setBytes(intBytes(id), intBytes(v0) + intBytes(v1) + intBytes(v2))
 
+    fun sendRaw(cmdId: Int, payload: ByteArray): Boolean =
+        setBytes(intBytes(cmdId), payload)
+
     fun sendFloatArray(cmdId: Int, values: FloatArray): Boolean {
         val payload = try {
             buildBulkParam(cmdId, values)
