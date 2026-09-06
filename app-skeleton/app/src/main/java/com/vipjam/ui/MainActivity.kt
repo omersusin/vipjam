@@ -128,8 +128,9 @@ fun VipJamApp() {
         }
     }
 
-    val headerTitle = if (top == TabPage.System && systemDetail != null) {
-        systemDetail.label
+    val detail = systemDetail
+    val headerTitle = if (top == TabPage.System && detail != null) {
+        detail.label
     } else {
         top.label
     }

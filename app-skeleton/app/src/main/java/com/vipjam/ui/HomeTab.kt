@@ -9,6 +9,7 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -190,7 +191,7 @@ fun HomeTab(
         } else {
             val delay = 30 + 45 * index
             val spec = tween<Float>(240, delay, LinearOutSlowInEasing)
-            val offsetSpec = tween<Int>(240, delay, LinearOutSlowInEasing)
+            val offsetSpec = tween<IntOffset>(240, delay, LinearOutSlowInEasing)
             AnimatedVisibility(
                 visible = entered,
                 enter = fadeIn(spec) + slideInVertically(offsetSpec) { it / 4 },
