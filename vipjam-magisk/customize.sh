@@ -67,8 +67,12 @@ for FILE in ${CFGS}; do
   esac
 done
 
-if [ -d "/odm/etc/" ]; then
+MOD_SRC=""
+for R in "${NVBASE:-/data/adb}/modules/vipjam" /data/adb/ksu/modules/vipjam /data/adb/ap/modules/vipjam /data/adb/modules/vipjam; do
+  if [ -f "$R/odm/etc/audio_effects.xml" ]; then MOD_SRC="$R/odm/etc/audio_effects.xml"; break; fi
+done
+if [ -d "/odm/etc/" ] && [ -n "$MOD_SRC" ]; then
   echo "Binding audio_effects.xml to odm partition..."
-  mount -o bind /data/adb/modules/vipjam/odm/etc/audio_effects.xml /odm/etc/audio_effects.xml 2>/dev/null \
+  mount -o bind "$MOD_SRC" /odm/etc/audio_effects.xml 2>/dev/null \
     || echo "odm bind skipped (non-fatal)"
 fi

@@ -63,6 +63,7 @@ dependencies {
     val bom = libs.compose.bom
     implementation(platform(bom))
     implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.core.ktx)
     implementation(libs.activity.compose)

@@ -7,43 +7,58 @@ import java.nio.ByteOrder
 import java.util.UUID
 
 class VipJamDispatcher(private val sessionId: Int) : ParamSink {
+    private val lock = Any()
     private var effect: AudioEffect? = null
 
     fun create(): Boolean {
-        if (effect != null) return true
-        return try {
-            val ctor = AudioEffect::class.java.getConstructor(
-                UUID::class.java, UUID::class.java,
-                Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            )
-            val fx = ctor.newInstance(EFFECT_TYPE, EFFECT_UUID, 0, sessionId)
-                as AudioEffect
-            effect = fx
-            true
-        } catch (e: Exception) {
-            Log.w(TAG, "AudioEffect unavailable (driver not installed?)", e)
-            false
+        synchronized(lock) {
+            if (effect != null) return true
+            return try {
+                val ctor = AudioEffect::class.java.getConstructor(
+                    UUID::class.java, UUID::class.java,
+                    Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
+                )
+                val fx = ctor.newInstance(EFFECT_TYPE, EFFECT_UUID, 0, sessionId)
+                    as AudioEffect
+                effect = fx
+                true
+            } catch (e: Exception) {
+                Log.w(TAG, "AudioEffect unavailable (driver not installed?)", e)
+                effect = null
+                false
+            }
         }
     }
 
     fun release() {
-        try {
-            effect?.release()
-        } catch (e: Exception) {
-            Log.w(TAG, "release failed", e)
+        synchronized(lock) {
+            try {
+                effect?.release()
+            } catch (e: Exception) {
+                Log.w(TAG, "release failed", e)
+            }
+            effect = null
         }
-        effect = null
     }
 
     var enabled: Boolean
-        get() = try {
-            effect?.enabled == true
-        } catch (e: Exception) {
-            false
+        get() {
+            val fx = synchronized(lock) { effect } ?: return false
+            return try {
+                fx.enabled
+            } catch (e: Exception) {
+                Log.w(TAG, "get enabled failed", e)
+                false
+            }
         }
         set(on) {
+            val fx = synchronized(lock) { effect }
+            if (fx == null) {
+                Log.w(TAG, "set enabled ignored (effect not present)")
+                return
+            }
             try {
-                effect?.enabled = on
+                fx.enabled = on
             } catch (e: Exception) {
                 Log.w(TAG, "set enabled failed", e)
             }
@@ -59,7 +74,7 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         setBytes(intBytes(id), intBytes(v0) + intBytes(v1) + intBytes(v2))
 
     fun getParam(id: Int): Int? {
-        val fx = effect ?: return null
+        val fx = synchronized(lock) { effect } ?: return null
         return try {
             val m = AudioEffect::class.java.getMethod(
                 "getParameter", ByteArray::class.java, ByteArray::class.java,
@@ -78,7 +93,11 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
     }
 
     private fun setBytes(param: ByteArray, value: ByteArray): Boolean {
-        val fx = effect ?: return false
+        val fx = synchronized(lock) { effect }
+        if (fx == null) {
+            Log.w(TAG, "setParameter ignored (effect not present)")
+            return false
+        }
         return try {
             val m = AudioEffect::class.java.getMethod(
                 "setParameter", ByteArray::class.java, ByteArray::class.java,

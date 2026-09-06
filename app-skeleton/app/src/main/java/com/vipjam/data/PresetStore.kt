@@ -17,14 +17,16 @@ data class PresetEntry(val name: String, val settingsJson: String)
 class PresetStore(private val dataStore: DataStore<Preferences>) {
     private val namesKey = stringSetPreferencesKey("preset_names")
 
-    private fun bodyKey(name: String) = stringPreferencesKey("preset_$name")
+    private fun bodyKey(name: String) = stringPreferencesKey("preset_body_$name")
+    private fun legacyBodyKey(name: String) = stringPreferencesKey("preset_$name")
     private val routeMapKey = stringPreferencesKey("route_preset_map")
 
     val entries: Flow<List<PresetEntry>> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
         .map { prefs ->
-            prefs[namesKey].orEmpty().sorted().mapNotNull { name ->
-                prefs[bodyKey(name)]?.let { PresetEntry(name, it) }
+            val names = try { prefs[namesKey].orEmpty() } catch (_: ClassCastException) { emptySet() }
+            names.sorted().mapNotNull { name ->
+                (prefs[bodyKey(name)] ?: prefs[legacyBodyKey(name)])?.let { PresetEntry(name, it) }
             }
         }
 
@@ -32,8 +34,10 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
         require(NAME_RE.matches(entry.name)) { "bad preset name" }
         PresetImporter.parseV3(entry.settingsJson).getOrThrow()
         dataStore.edit { prefs ->
-            prefs[namesKey] = prefs[namesKey].orEmpty() + entry.name
+            val names = try { prefs[namesKey].orEmpty() } catch (_: ClassCastException) { emptySet() }
+            prefs[namesKey] = names + entry.name
             prefs[bodyKey(entry.name)] = entry.settingsJson
+            prefs.remove(legacyBodyKey(entry.name))
         }
         Unit
     }
@@ -51,35 +55,39 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun delete(name: String) {
         dataStore.edit { prefs ->
-            prefs[namesKey] = prefs[namesKey].orEmpty() - name
+            val names = try { prefs[namesKey].orEmpty() } catch (_: ClassCastException) { emptySet() }
+            prefs[namesKey] = names - name
             prefs.remove(bodyKey(name))
+            prefs.remove(legacyBodyKey(name))
         }
     }
 
     val routePresetMap: Flow<Map<String, String>> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
-        .map { prefs ->
-            runCatching {
-                JSONObject(prefs[routeMapKey].orEmpty()).let { obj ->
-                    obj.keys().asSequence().associateWith { obj.getString(it) }
-                }
-            }.getOrDefault(emptyMap())
-        }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
+        .map { prefs -> decodeRouteMap(prefs[routeMapKey].orEmpty()) }
 
     suspend fun setRoutePreset(route: String, presetName: String) {
+        require(route.isNotBlank()) { "bad route" }
+        require(presetName.isNotBlank()) { "bad preset name" }
         dataStore.edit { prefs ->
-            val obj = runCatching {
-                JSONObject(prefs[routeMapKey].orEmpty())
-            }.getOrDefault(JSONObject())
-            obj.put(route, presetName)
-            prefs[routeMapKey] = obj.toString()
+            prefs[routeMapKey] = encodeRouteMap(
+                decodeRouteMap(prefs[routeMapKey].orEmpty()) + (route to presetName),
+            )
+        }
+    }
+
+    suspend fun clearRoutePreset(route: String) {
+        dataStore.edit { prefs ->
+            prefs[routeMapKey] = encodeRouteMap(
+                decodeRouteMap(prefs[routeMapKey].orEmpty()) - route,
+            )
         }
     }
 
     private val deviceMapKey = stringPreferencesKey("device_preset_map")
 
     val devicePresetMap: Flow<Map<String, String>> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
         .map { prefs -> decodeDeviceMap(prefs[deviceMapKey].orEmpty()) }
 
     suspend fun setDevicePreset(deviceId: String, preset: String) {
@@ -103,6 +111,27 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
     companion object {
         private val NAME_RE = Regex("[A-Za-z0-9 _.-]{1,64}")
 
+        private fun encodeRouteMap(map: Map<String, String>): String {
+            val obj = JSONObject()
+            for ((key, value) in map) obj.put(key, value)
+            return obj.toString()
+        }
+
+        private fun decodeRouteMap(raw: String): Map<String, String> {
+            if (raw.isBlank()) return emptyMap()
+            val obj = try {
+                JSONObject(raw)
+            } catch (_: Exception) {
+                return emptyMap()
+            }
+            val out = LinkedHashMap<String, String>()
+            for (key in obj.keys()) {
+                val value = obj.optString(key, "")
+                if (key.isNotBlank() && value.isNotBlank()) out[key] = value
+            }
+            return out
+        }
+
         private fun encodeDeviceMap(map: Map<String, String>): String {
             val obj = JSONObject()
             for ((key, value) in map) obj.put(key, value)
@@ -117,7 +146,10 @@ class PresetStore(private val dataStore: DataStore<Preferences>) {
                 return emptyMap()
             }
             val out = LinkedHashMap<String, String>()
-            for (key in obj.keys()) out[key] = obj.optString(key, "")
+            for (key in obj.keys()) {
+                val value = obj.optString(key, "")
+                if (key.isNotBlank() && value.isNotBlank()) out[key] = value
+            }
             return out
         }
     }

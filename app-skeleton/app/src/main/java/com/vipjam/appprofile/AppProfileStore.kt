@@ -18,15 +18,15 @@ class AppProfileStore(private val dataStore: DataStore<Preferences>) {
     private val headphoneOnlyKey = booleanPreferencesKey("app_monitor_headphone_only")
 
     val appPresetMap: Flow<Map<String, String>> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
         .map { prefs -> decodeAppMap(prefs[mapKey].orEmpty()) }
 
     val monitorEnabled: Flow<Boolean> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
         .map { prefs -> prefs[enabledKey] ?: false }
 
     val headphoneOnly: Flow<Boolean> = dataStore.data
-        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .catch { e -> if (e is IOException || e is ClassCastException) emit(emptyPreferences()) else throw e }
         .map { prefs -> prefs[headphoneOnlyKey] ?: true }
 
     suspend fun setAppPreset(packageName: String, preset: String) {
@@ -70,7 +70,10 @@ class AppProfileStore(private val dataStore: DataStore<Preferences>) {
                 return emptyMap()
             }
             val out = LinkedHashMap<String, String>()
-            for (key in obj.keys()) out[key] = obj.optString(key, "")
+            for (key in obj.keys()) {
+                val value = obj.optString(key, "")
+                if (key.isNotBlank() && value.isNotBlank()) out[key] = value
+            }
             return out
         }
     }

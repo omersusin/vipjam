@@ -629,7 +629,10 @@ inaudible; fixed, range to 24dB) applied from day one.
   james ext block + bulk cmds, 41 host tests; HIDL `.hal` deferred — needs
   Soong/AOSP build, host-unverifiable; replaced at runtime by ndk-build
   `hal/VipJamEffect.cpp`, host-tested INIT/CONFIG/PARAM/PROCESS).
-  REMAINING: module packaging zip job; EAPO/REW/autoeq import.
+  REMAINING: EAPO/REW/autoeq import.
+  (verified 2026-09-06: module packaging zip job is DONE — `module-zip`
+  job in `.github/workflows/android.yml` stages `libvipjam.so` per ABI
+  and uploads `vipjam-magisk-*.zip`; struck from REMAINING.)
   Docs convention from day one: `docs/<area>/HOW_TO.md`
   (Setup → Code → Integration → Test → Verify) + `.agent/skills`
   (james-bond pattern); every implementation PR updates its HOW_TO.
@@ -638,13 +641,22 @@ inaudible; fixed, range to 24dB) applied from day one.
   (done: WebUI polish, kernel fetch `tools/fetch_kernels.py` + manifest,
   LiveProg mini-IDE tab, link codec, loudness compensator, Movie/Game
   presets, app preset import/store, tabbed app shell, JNI test-tone player,
-  app→driver dispatch + status probe.
-  REMAINING: AIDL driver + Pixel path; kernel in-app pickers + staging +
-  HAL array protocol (DDC/IR push); LiveProg content → driver; AutoEq
-  build-time preset gen; Crowdin; F-Droid; per-app/per-device maps; update
-  checker; `vipjam.log`; app root ops — RootShell, kernel staging, SHM
-  writer, AudioSessionMonitor, output routing; EQ curve UI; reorderable
-  chain UI; Device/Settings sheets; dark toggle; ZH/RU; tablet layout).
+  app→driver dispatch + status probe, `vipjam-ctl` status/sessions/diagnostics,
+  HAL array protocol (EQ/DDC/IR), per-app profiles + mapping UI, AutoEq
+  subsystem + browser UI, per-device preset memory, Hi-Res addon
+  (`hires_unlock`), LoongFX presets, `aml.sh`, EQ curve editor UI,
+  route-linked profiles, KSU-Next whitelist self-extract fix, installer
+  actually installs driver, AIDL track scaffold (`vipjam_dsp/hal-aidl/`,
+  UNCOMPILED skeleton per its README — still needs a Soong/AOSP build).
+  REMAINING: AIDL driver compile + Pixel path; kernel in-app pickers +
+  staging + DDC/IR push; LiveProg content → driver; AutoEq build-time
+  preset gen; Crowdin; F-Droid; update checker; `vipjam.log`; app root
+  ops — RootShell, kernel staging, SHM writer, AudioSessionMonitor,
+  output routing (all absent from `app-skeleton/` as of 2026-09-06);
+  reorderable chain UI (absent); Device/Settings sheets; dark toggle;
+  ZH/RU; tablet layout.
+  (verified 2026-09-06 against `git log` + file listing: struck EQ curve
+  UI, per-app/per-device maps, AutoEq UI from REMAINING — all present.)
 - **Faz 4** — HiRes/USB hardening, KFR fast-path, oversampling, DVC,
   per-channel EQ, hearing test, RNNoise mic gate, rootless Shizuku,
   exciter-4band, global Poweramp-style mode (experimental).

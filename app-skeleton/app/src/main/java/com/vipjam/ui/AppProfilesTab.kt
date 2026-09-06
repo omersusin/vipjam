@@ -19,6 +19,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -34,10 +35,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.vipjam.appprofile.AppProfileMonitor
 import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.data.PresetStore
+import com.vipjam.data.VipJamPrefs
+import com.vipjam.service.VipJamService
+import com.vipjam.ui.components.EmptyState
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+
+private val PARKED_KEY = stringPreferencesKey("app_profile_parked_map")
 
 private data class LaunchApp(val label: String, val packageName: String)
 
@@ -64,6 +75,24 @@ private fun queryLaunchable(pm: PackageManager): List<LaunchApp> {
     return out.map { (pkg, label) -> LaunchApp(label, pkg) }.sortedBy { it.label.lowercase() }
 }
 
+private fun decodeParked(raw: String): Map<String, String> {
+    if (raw.isBlank()) return emptyMap()
+    val obj = try {
+        JSONObject(raw)
+    } catch (_: Exception) {
+        return emptyMap()
+    }
+    val out = LinkedHashMap<String, String>()
+    for (key in obj.keys()) out[key] = obj.optString(key, "")
+    return out.filterValues { it.isNotBlank() }
+}
+
+private fun encodeParked(map: Map<String, String>): String {
+    val obj = JSONObject()
+    for ((key, value) in map) obj.put(key, value)
+    return obj.toString()
+}
+
 @Composable
 fun AppProfilesTab(snackbar: SnackbarHostState) {
     val context = LocalContext.current
@@ -73,10 +102,14 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
     val monitorEnabled by store.monitorEnabled.collectAsState(initial = false)
     val headphoneOnly by store.headphoneOnly.collectAsState(initial = true)
     val appMap by store.appPresetMap.collectAsState(initial = emptyMap())
+    val parked by context.prefs.data
+        .map { decodeParked(it[PARKED_KEY].orEmpty()) }
+        .collectAsState(initial = emptyMap())
     val entries by presetStore.entries.collectAsState(initial = emptyList())
     val presetNames = entries.map { it.name }
     var needsPerm by remember { mutableStateOf(true) }
     var permTick by remember { mutableStateOf(0) }
+    var search by remember { mutableStateOf("") }
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -97,6 +130,77 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
             emptyList()
         }
     }
+    val shown = if (search.isBlank()) apps
+    else apps.filter {
+        it.label.contains(search.trim(), ignoreCase = true) ||
+            it.packageName.contains(search.trim(), ignoreCase = true)
+    }
+
+    fun setLinked(pkg: String, label: String, preset: String?) {
+        scope.launch {
+            if (preset == null) {
+                store.clearAppPreset(pkg)
+                message("$label → Default")
+            } else {
+                try {
+                    store.setAppPreset(pkg, preset)
+                    message("$label → $preset")
+                } catch (e: Exception) {
+                    message("Link failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    fun setAppEnabled(pkg: String, label: String, assigned: String?, on: Boolean) {
+        scope.launch {
+            if (on) {
+                val restore = parked[pkg]
+                if (restore.isNullOrBlank()) {
+                    message("$label enabled (no linked preset)")
+                } else {
+                    try {
+                        store.setAppPreset(pkg, restore)
+                        context.prefs.edit {
+                            it[PARKED_KEY] = encodeParked(parked - pkg)
+                        }
+                        message("$label enabled → $restore")
+                    } catch (e: Exception) {
+                        message("Enable failed: ${e.message}")
+                    }
+                }
+            } else {
+                if (!assigned.isNullOrBlank()) {
+                    context.prefs.edit {
+                        it[PARKED_KEY] = encodeParked(parked + (pkg to assigned))
+                    }
+                    store.clearAppPreset(pkg)
+                }
+                message("$label disabled")
+            }
+        }
+    }
+
+    fun applyNow(pkg: String, label: String, presetName: String) {
+        scope.launch {
+            val json = entries.find { it.name == presetName }?.settingsJson
+            if (json.isNullOrBlank()) {
+                message("Preset $presetName not found")
+                return@launch
+            }
+            val master = try {
+                context.prefs.data.first()[VipJamPrefs.MASTER_ENABLE] ?: false
+            } catch (_: Exception) {
+                false
+            }
+            try {
+                VipJamService.applyPreset(context, json, master)
+                message("Applied $presetName for $label")
+            } catch (e: Exception) {
+                message("Apply failed: ${e.message}")
+            }
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -106,6 +210,13 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
     ) {
         item {
             Text("App Profiles", style = MaterialTheme.typography.headlineLarge)
+        }
+        item {
+            Text(
+                "Links are written through AppProfileStore.setAppPreset / clearAppPreset — the same map AppProfileMonitor reads before applying via VipJamService.applyPreset.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -166,21 +277,89 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                 }
             }
         }
-        items(apps, key = { it.packageName }) { app ->
+        item {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                label = { Text("Search apps (${apps.size})") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+        if (presetNames.isEmpty()) {
+            item {
+                Text(
+                    "No presets installed yet — linking is disabled until a preset exists.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        if (apps.isEmpty()) {
+            item {
+                EmptyState(
+                    title = "No launchable apps found",
+                    body = "Retry with Refresh once packages are available.",
+                )
+            }
+        } else if (shown.isEmpty()) {
+            item {
+                Text(
+                    "No apps match \"${search.trim()}\".",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(shown, key = { it.packageName }) { app ->
             var expanded by remember { mutableStateOf(false) }
             val assigned = appMap[app.packageName]
+            val isDisabled = assigned == null && parked.containsKey(app.packageName)
             Box {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { expanded = true },
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Text(app.label, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "${app.packageName} → ${assigned ?: "Default"}",
+                            "${app.packageName} → ${assigned ?: "Default"}" +
+                                if (isDisabled) " (disabled)" else "",
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                if (isDisabled) "Disabled" else "Enabled",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Switch(
+                                checked = !isDisabled,
+                                onCheckedChange = {
+                                    setAppEnabled(app.packageName, app.label, assigned, it)
+                                },
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = { expanded = true }) {
+                                Text("Link preset")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    if (assigned != null) applyNow(app.packageName, app.label, assigned)
+                                },
+                                enabled = assigned != null,
+                            ) {
+                                Text("Apply now")
+                            }
+                        }
                     }
                 }
                 DropdownMenu(
@@ -191,10 +370,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                         text = { Text("Default") },
                         onClick = {
                             expanded = false
-                            scope.launch {
-                                store.clearAppPreset(app.packageName)
-                                message("${app.label} → Default")
-                            }
+                            setLinked(app.packageName, app.label, null)
                         },
                     )
                     presetNames.forEach { name ->
@@ -202,10 +378,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
                             text = { Text(name) },
                             onClick = {
                                 expanded = false
-                                scope.launch {
-                                    store.setAppPreset(app.packageName, name)
-                                    message("${app.label} → $name")
-                                }
+                                setLinked(app.packageName, app.label, name)
                             },
                         )
                     }

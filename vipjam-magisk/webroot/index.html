@@ -50,10 +50,12 @@
   <div class="card">
     <h3>Driver status</h3>
     <div class="status" id="status">loading…</div>
-    <button id="refreshBtn" class="ghost">Refresh</button>
+    <div class="row"><button id="refreshBtn" class="ghost">Refresh</button><button id="diagBtn" class="ghost">Diagnostics</button></div>
   </div>
 <script>
   const PRESET_DIR = "/data/local/tmp/vipjam/presets";
+  const P_BASS_GAIN = 65577;
+  const F_CLARITY = 131504;
   let hasCtl = true;
   let timers = {};
 
@@ -61,12 +63,32 @@
     const r = await ksu.exec(cmd);
     return (r.stdout || "") + (r.stderr || "");
   }
+  function q(s) {
+    return "'" + String(s).replace(/'/g, "'\\''") + "'";
+  }
   function debounced(key, fn) {
     clearTimeout(timers[key]);
     timers[key] = setTimeout(fn, 120);
   }
+  function decodeLink(link) {
+    const p = "vipjam://preset?c=";
+    if (link.indexOf(p) !== 0) return null;
+    try {
+      let b = link.slice(p.length).replace(/-/g, "+").replace(/_/g, "/");
+      while (b.length % 4) b += "=";
+      const bin = atob(b);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const text = new TextDecoder().decode(bytes);
+      const obj = JSON.parse(text);
+      if (obj && typeof obj === "object" && obj.schemaVersion === 3) return text;
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
   function setEnabled(on) {
-    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn"]) {
+    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn", "diagBtn"]) {
       document.getElementById(id).disabled = !on;
     }
     document.getElementById("nobeCtl").hidden = on;
@@ -81,15 +103,24 @@
       document.getElementById("status").textContent = "(vipjam-ctl not found)";
       return;
     }
-    const out = await sh("vipjam-ctl status-json 2>&1; getprop persist.vipjam.enabled persist.vipjam.profile");
+    const out = await sh("vipjam-ctl status-json 2>&1");
     document.getElementById("status").textContent = out || "(empty)";
     listPresets();
   }
+  async function diag() {
+    if (!hasCtl) {
+      document.getElementById("status").textContent = "(vipjam-ctl not found)";
+      return;
+    }
+    const out = await sh("vipjam-ctl diag 2>&1");
+    document.getElementById("status").textContent = out || "(empty)";
+  }
   async function listPresets() {
-    const out = await sh("ls " + PRESET_DIR + " 2>/dev/null");
+    const out = await sh("vipjam-ctl list 2>/dev/null");
     const box = document.getElementById("presetList");
     box.innerHTML = "";
-    for (const name of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+    for (const path of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+      const name = path.split("/").pop();
       const div = document.createElement("div");
       div.className = "preset";
       const label = document.createElement("span");
@@ -98,7 +129,7 @@
       apply.className = "ghost";
       apply.textContent = "Apply";
       apply.onclick = async () => {
-        await sh("vipjam-ctl apply-preset " + PRESET_DIR + "/" + name);
+        await sh("vipjam-ctl preset " + q(path));
         refresh();
       };
       div.appendChild(label);
@@ -116,26 +147,40 @@
     }
   }
   document.getElementById("refreshBtn").onclick = refresh;
+  document.getElementById("diagBtn").onclick = diag;
   document.getElementById("masterBtn").onclick = async () => {
-    await sh("vipjam-ctl toggle-master");
+    await sh("vipjam-ctl toggle");
     refresh();
   };
   document.getElementById("profile").onchange = async (e) => {
-    await sh("vipjam-ctl set-profile " + e.target.value);
+    await sh("vipjam-ctl profile " + q(e.target.value));
     refresh();
   };
-  for (const [id, param, val] of [["bass", "bass", "bassVal"], ["clarity", "clarity", "clarVal"]]) {
+  for (const [id, paramId, val, mode] of [[ "bass", P_BASS_GAIN, "bassVal", 0 ], [ "clarity", F_CLARITY, "clarVal", 0 ]]) {
     document.getElementById(id).oninput = (e) => {
       document.getElementById(val).textContent = e.target.value;
       localStorage.setItem("vipjam." + id, e.target.value);
-      debounced(param, () => sh("vipjam-ctl set-param " + param + " " + e.target.value));
+      const v = e.target.value;
+      debounced(id, () => sh("vipjam-ctl param " + paramId + " " + v + " " + mode));
     };
   }
   document.getElementById("presetBtn").onclick = async () => {
     const link = document.getElementById("presetLink").value.trim();
-    if (!link.startsWith("vipjam://preset?c=")) return;
+    let text = null;
+    if (link.startsWith("vipjam://preset?c=")) {
+      text = decodeLink(link);
+      if (text === null) return;
+    } else {
+      try {
+        const obj = JSON.parse(link);
+        if (!obj || typeof obj !== "object" || obj.schemaVersion !== 3) return;
+        text = JSON.stringify(obj);
+      } catch (e) {
+        return;
+      }
+    }
     const name = "link-" + Date.now() + ".v3.json";
-    await sh("mkdir -p " + PRESET_DIR + " && echo '" + link.replace(/'/g, "") + "' > " + PRESET_DIR + "/" + name);
+    await sh("mkdir -p " + q(PRESET_DIR) + " && printf '%s' " + q(text) + " > " + q(PRESET_DIR + "/" + name));
     document.getElementById("presetLink").value = "";
     listPresets();
   };

@@ -57,9 +57,16 @@ def parse_prefs(text: str) -> dict[str, Any]:
     prefs: dict[str, Any] = {}
     for el in root.iter():
         name = el.get("name")
-        if name is None or el.tag not in ("int", "boolean", "string"):
+        if name is None:
             continue
-        prefs[name] = el.text or "" if el.tag == "string" else el.get("value") == "true"
+        if el.tag == "string":
+            prefs[name] = el.text or ""
+        elif el.tag == "boolean":
+            prefs[name] = el.get("value") == "true"
+        elif el.tag in ("int", "long", "float"):
+            prefs[name] = el.get("value") if el.get("value") is not None else (el.text or "")
+        else:
+            continue
     return prefs
 
 

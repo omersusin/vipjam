@@ -1,6 +1,7 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
-LIBPATCH=`cat $MODDIR/libpatch.txt`
+LIBPATCH=$(cat "$MODDIR/libpatch.txt" 2>/dev/null)
+[ -n "$LIBPATCH" ] || LIBPATCH="\/vendor"
 CFGS="$(find /odm /system /vendor -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml")"
 for FILE in ${CFGS}; do
   case $FILE in
@@ -19,8 +20,12 @@ for FILE in ${CFGS}; do
   esac
 done
 
-if [ -d "/odm/etc/" ]; then
-  mount -o bind /data/adb/modules/vipjam/odm/etc/audio_effects.xml /odm/etc/audio_effects.xml
+MOD_SRC=""
+for R in "$MODDIR" "${NVBASE:-/data/adb}/modules/vipjam" /data/adb/ksu/modules/vipjam /data/adb/ap/modules/vipjam /data/adb/modules/vipjam; do
+  if [ -f "$R/odm/etc/audio_effects.xml" ]; then MOD_SRC="$R/odm/etc/audio_effects.xml"; break; fi
+done
+if [ -d "/odm/etc/" ] && [ -n "$MOD_SRC" ]; then
+  mount -o bind "$MOD_SRC" /odm/etc/audio_effects.xml 2>/dev/null || true
 fi
 
 if [ -f "$MODDIR/hires_enable" ]; then

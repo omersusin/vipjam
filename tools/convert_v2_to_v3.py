@@ -131,7 +131,9 @@ def parse_james_prefs(text: str) -> dict[str, Any]:
                 continue
             if el.tag == "boolean":
                 prefs[name] = el.get("value") == "true"
-            elif el.tag in ("string", "int", "long", "float"):
+            elif el.tag in ("int", "long", "float"):
+                prefs[name] = el.get("value") if el.get("value") is not None else (el.text or "")
+            elif el.tag == "string":
                 prefs[name] = el.text or ""
         return prefs
     obj = json.loads(text)

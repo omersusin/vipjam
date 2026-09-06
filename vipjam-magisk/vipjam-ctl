@@ -1,5 +1,9 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
+UUID=1b222930-cde3-5b6f-81a4-f67b3334a73e
+LIB=libvipjam.so
+PRESET_DIR=/data/local/tmp/vipjam/presets
+SHM_BIN=/data/local/tmp/vipjam/shm_status.bin
 
 print_version() {
   if [ -f "$MODDIR/module.prop" ]; then
@@ -10,9 +14,98 @@ print_version() {
   fi
 }
 
+ctl_version() {
+  v="$(grep "^version=" "$MODDIR/module.prop" 2>/dev/null)"
+  case "$v" in
+    version=*) echo "${v#version=}" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+hal_so() {
+  case "$1" in
+    32) dirs="$MODDIR/system/vendor/lib/soundfx $MODDIR/system/lib/soundfx /vendor/lib/soundfx /system/lib/soundfx" ;;
+    *) dirs="$MODDIR/system/vendor/lib64/soundfx $MODDIR/system/lib64/soundfx /vendor/lib64/soundfx /system/lib64/soundfx" ;;
+  esac
+  for d in $dirs; do
+    if [ -f "$d/$LIB" ]; then
+      echo "$d/$LIB"
+      return 0
+    fi
+  done
+  return 1
+}
+
+cfg_hits() {
+  for f in /vendor/etc/audio_effects*.xml /vendor/etc/audio_effects*.conf /odm/etc/audio_effects*.xml /odm/etc/audio_effects*.conf /system/etc/audio_effects*.xml /system/etc/audio_effects*.conf; do
+    [ -f "$f" ] || continue
+    if grep -qi "vipjam" "$f" 2>/dev/null; then
+      echo "$f"
+    fi
+  done
+}
+
+applied_profile() {
+  p="$(getprop persist.vipjam.profile 2>/dev/null)"
+  if [ -n "$p" ]; then
+    echo "$p"
+  else
+    echo "unknown"
+  fi
+}
+
+driver_reachable() {
+  if command -v dumpsys >/dev/null 2>&1; then
+    if dumpsys media.audio_effects 2>/dev/null | grep -qi "vipjam"; then return 0; fi
+    if dumpsys audio 2>/dev/null | grep -qi "vipjam"; then return 0; fi
+  fi
+  if [ -f "$SHM_BIN" ]; then return 0; fi
+  return 1
+}
+
+is_int() {
+  v="$1"
+  case "$v" in
+    -*) v="${v#-}" ;;
+  esac
+  [ -n "$v" ] || return 1
+  case "$v" in
+    *[!0-9]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 do_status() {
   echo "== version =="
   print_version
+  echo ""
+  echo "== hal (.so presence per ABI) =="
+  p32="$(hal_so 32)"
+  if [ -n "$p32" ]; then
+    echo "arm32: FOUND $p32"
+  else
+    echo "arm32: MISSING $LIB"
+  fi
+  p64="$(hal_so 64)"
+  if [ -n "$p64" ]; then
+    echo "arm64: FOUND $p64"
+  else
+    echo "arm64: MISSING $LIB"
+  fi
+  echo ""
+  echo "== audio_effects (vipjam blocks) =="
+  hits="$(cfg_hits)"
+  if [ -n "$hits" ]; then
+    for F in $hits; do
+      echo "--- $F ---"
+      grep -i -B2 -A4 "vipjam" "$F" 2>/dev/null
+    done
+  else
+    echo "(no vipjam entries in audio_effects*.xml|conf)"
+  fi
+  echo ""
+  echo "== applied profile =="
+  applied_profile
   echo ""
   echo "== props (persist.vipjam.*) =="
   if command -v getprop >/dev/null 2>&1; then
@@ -25,34 +118,43 @@ do_status() {
     echo "(getprop unavailable)"
   fi
   echo ""
-  echo "== audio_effects (vipjam blocks) =="
-  FOUND=0
-  for F in /vendor/etc/audio_effects*.xml /vendor/etc/audio_effects*.conf; do
-    if [ -f "$F" ]; then
-      if grep -i "vipjam" "$F" >/dev/null 2>&1; then
-        echo "--- $F ---"
-        grep -i -B2 -A4 "vipjam" "$F"
-        FOUND=1
-      fi
-    fi
-  done
-  if [ "$FOUND" = "0" ]; then
-    echo "(no vipjam entries in /vendor/etc/audio_effects*.xml|conf)"
+  echo "== driver reachability =="
+  if driver_reachable; then
+    echo "REACHABLE (dumpsys reports vipjam or $SHM_BIN present)"
+  else
+    echo "UNREACHABLE (no vipjam in dumpsys media.audio_effects/audio and $SHM_BIN absent)"
   fi
   echo ""
   echo "== shm_status (first 64 bytes) =="
-  BIN=/data/local/tmp/vipjam/shm_status.bin
-  if [ -f "$BIN" ]; then
+  if [ -f "$SHM_BIN" ]; then
     if command -v hexdump >/dev/null 2>&1; then
-      hexdump -C -n 64 "$BIN"
+      hexdump -C -n 64 "$SHM_BIN"
     elif command -v od >/dev/null 2>&1; then
-      od -A x -t x1z -v -N 64 "$BIN"
+      od -A x -t x1z -v -N 64 "$SHM_BIN"
     else
-      echo "(no hexdump/od available to read $BIN)"
+      echo "(no hexdump/od available to read $SHM_BIN)"
     fi
   else
-    echo "(not present: $BIN)"
+    echo "(not present: $SHM_BIN)"
   fi
+}
+
+do_diag() {
+  if [ -n "$(hal_so 32)" ]; then s32=1; else s32=0; fi
+  if [ -n "$(hal_so 64)" ]; then s64=1; else s64=0; fi
+  if [ -n "$(cfg_hits)" ]; then cfg=1; else cfg=0; fi
+  if driver_reachable; then drv=1; else drv=0; fi
+  master="$(getprop persist.vipjam.enabled 2>/dev/null)"
+  [ -n "$master" ] || master=unknown
+  echo "VIPJAM_CTL_VERSION=$(ctl_version)"
+  echo "HAL_SO_32=$s32"
+  echo "HAL_SO_32_PATH=$(hal_so 32)"
+  echo "HAL_SO_64=$s64"
+  echo "HAL_SO_64_PATH=$(hal_so 64)"
+  echo "AUDIO_EFFECTS_ENTRY=$cfg"
+  echo "PROFILE=$(applied_profile)"
+  echo "MASTER=$master"
+  echo "DRIVER_REACHABLE=$drv"
 }
 
 do_sessions() {
@@ -68,16 +170,30 @@ do_sessions() {
   fi
 }
 
+do_list() {
+  for d in "$PRESET_DIR" "$MODDIR/presets"; do
+    [ -d "$d" ] || continue
+    for f in "$d"/*.json; do
+      [ -f "$f" ] || continue
+      echo "$f"
+    done
+  done
+}
+
 do_help() {
-  echo "Usage: vipjam-ctl {status|sessions|version|toggle-master|set-profile|set-param|apply-preset|help}"
-  echo "  status   - module version, persist.vipjam.* props, audio_effects vipjam blocks, shm_status head"
-  echo "  sessions - dumpsys audio filtered for vipjam/effect sessions"
-  echo "  version  - print module.prop version line"
-  echo "  toggle-master - flip master on/off (via app service)"
-  echo "  set-profile <route> - headset|speaker|bluetooth (via app service)"
-  echo "  set-param <id> <v0> [v1] [v2] - raw scalar param (via app service)"
-  echo "  apply-preset <file> - apply a .v3.json preset (via app service)"
-  echo "  help     - print this usage"
+  echo "Usage: vipjam-ctl {status|diag|status-json|sessions|version|list|toggle|profile|param|preset|help}"
+  echo "  status      - version, HAL .so per ABI, audio_effects entries, profile, props, reachability, shm head"
+  echo "  diag        - machine-greppable KEY=value diagnostics (stable contract)"
+  echo "  status-json - alias for diag"
+  echo "  sessions    - dumpsys audio filtered for vipjam/effect sessions"
+  echo "  version     - print module.prop version line"
+  echo "  list        - list preset files"
+  echo "  toggle      - flip master on/off (via app service)"
+  echo "  profile <route> - headset|speaker|bluetooth (via app service)"
+  echo "  param <id> <v0> [v1] [v2] - raw scalar param ids are integers (via app service)"
+  echo "  preset <file> - apply a .v3.json preset file containing a JSON object (via app service)"
+  echo "  help        - print this usage"
+  echo "Legacy aliases: toggle-master=toggle, set-profile=profile, set-param=param, apply-preset=preset"
 }
 
 send_cmd() {
@@ -88,9 +204,45 @@ send_cmd() {
   echo "sent"
 }
 
+do_profile() {
+  case "$1" in
+    headset|speaker|bluetooth) ;;
+    *) echo "need a route: headset|speaker|bluetooth"; exit 2 ;;
+  esac
+  send_cmd "{\"cmd\":\"profile\",\"route\":\"$1\"}"
+}
+
+do_param() {
+  if [ -z "$1" ] || [ -z "$2" ]; then
+    echo "need id + value"
+    exit 2
+  fi
+  is_int "$1" || { echo "id must be an integer: $1"; exit 2; }
+  is_int "$2" || { echo "v0 must be an integer: $2"; exit 2; }
+  v1="${3:-0}"
+  v2="${4:-0}"
+  is_int "$v1" || { echo "v1 must be an integer: $3"; exit 2; }
+  is_int "$v2" || { echo "v2 must be an integer: $4"; exit 2; }
+  send_cmd "{\"cmd\":\"param\",\"id\":$1,\"v0\":$2,\"v1\":$v1,\"v2\":$v2}"
+}
+
+do_preset() {
+  [ -f "$1" ] || { echo "no such file: $1"; exit 2; }
+  compact="$(tr -d '\n\r' < "$1")"
+  stripped="$(tr -d ' \t' < "$1")"
+  case "$stripped" in
+    '{'*'}') ;;
+    *) echo "not a JSON object: $1"; exit 2 ;;
+  esac
+  send_cmd "{\"cmd\":\"preset\",\"json\":$compact}"
+}
+
 case "$1" in
   status)
     do_status
+    ;;
+  diag|status-json)
+    do_diag
     ;;
   sessions)
     do_sessions
@@ -98,21 +250,20 @@ case "$1" in
   version)
     print_version
     ;;
-  toggle-master)
+  list)
+    do_list
+    ;;
+  toggle|toggle-master)
     send_cmd '{"cmd":"toggle"}'
     ;;
-  set-profile)
-    [ -n "$2" ] || { echo "need a route"; exit 2; }
-    send_cmd "{\"cmd\":\"profile\",\"route\":\"$2\"}"
+  profile|set-profile)
+    do_profile "$2"
     ;;
-  set-param)
-    [ -n "$3" ] || { echo "need id + value"; exit 2; }
-    send_cmd "{\"cmd\":\"param\",\"id\":$2,\"v0\":$3,\"v1\":${4:-0},\"v2\":${5:-0}}"
+  param|set-param)
+    do_param "$2" "$3" "$4" "$5"
     ;;
-  apply-preset)
-    [ -f "$2" ] || { echo "no such file: $2"; exit 2; }
-    compact="$(tr -d '\n\r' < "$2")"
-    send_cmd "{\"cmd\":\"preset\",\"json\":$compact}"
+  preset|apply-preset)
+    do_preset "$2"
     ;;
   help|--help|-h|"")
     do_help

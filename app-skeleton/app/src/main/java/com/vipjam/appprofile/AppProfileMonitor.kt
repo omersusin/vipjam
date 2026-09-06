@@ -63,6 +63,8 @@ class AppProfileMonitor(
         pollJob = null
         debounceJob?.cancel()
         debounceJob = null
+        lastAutoPkg = null
+        preSwitchPreset = null
     }
 
     private fun handleForeground(pkg: String) {

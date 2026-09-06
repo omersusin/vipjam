@@ -29,7 +29,7 @@ object PresetSeeder {
         bundled.forEach { asset ->
             runCatching {
                 context.assets.open("presets/$asset").bufferedReader().use { reader ->
-                    store.importText(reader.readText())
+                    store.importText(reader.readText()).getOrThrow()
                 }
             }.onSuccess { seeded++ }
         }

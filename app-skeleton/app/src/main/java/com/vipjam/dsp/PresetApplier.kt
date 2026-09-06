@@ -1,5 +1,6 @@
 package com.vipjam.dsp
 
+import android.util.Log
 import com.vipjam.effect.VipJamEffects
 import org.json.JSONObject
 import kotlin.math.roundToInt
@@ -11,40 +12,71 @@ interface ParamSink {
 }
 
 object PresetApplier {
+    const val TAG = "PresetApplier"
+
     fun apply(sink: ParamSink, settingsJson: String, masterOn: Boolean): Boolean {
-        val obj = JSONObject(settingsJson)
-        var ok = sink.setParam(VipJamDispatcher.P_MASTER, if (masterOn) 1 else 0)
+        val obj = runCatching { JSONObject(settingsJson) }.getOrElse {
+            Log.w(TAG, "apply: invalid settingsJson, skipped", it)
+            return false
+        }
+        var ok = runCatching {
+            sink.setParam(VipJamDispatcher.P_MASTER, if (masterOn) 1 else 0)
+        }.getOrDefault(false)
         ok = group(obj, VipJamEffects.BASS) { g ->
-            sink.setParam(VipJamDispatcher.P_BASS_ENABLE, if (g.optBoolean("enable")) 1 else 0) &&
+            val en = runCatching {
+                sink.setParam(VipJamDispatcher.P_BASS_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            }.getOrDefault(false)
+            val gain = runCatching {
                 sink.setParam(VipJamDispatcher.P_BASS_GAIN, g.optInt("gain", 50))
-        } && ok
+            }.getOrDefault(false)
+            en and gain
+        } and ok
         ok = group(obj, VipJamEffects.CLARITY) { g ->
-            sink.setParam(VipJamDispatcher.P_CLARITY_ENABLE, if (g.optBoolean("enable")) 1 else 0) &&
+            val en = runCatching {
+                sink.setParam(VipJamDispatcher.P_CLARITY_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            }.getOrDefault(false)
+            val param = runCatching {
                 sink.setParam(
                     VipJamDispatcher.F_CLARITY,
                     g.optInt("gain", 50),
                     g.optInt("mode", 0),
                 )
-        } && ok
+            }.getOrDefault(false)
+            en and param
+        } and ok
         ok = group(obj, VipJamEffects.EQ) { g ->
-            val bands = g.optJSONArray("bands")
-            var r = sink.setParam(VipJamDispatcher.P_EQ_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            var r = runCatching {
+                sink.setParam(VipJamDispatcher.P_EQ_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            }.getOrDefault(false)
+            val bands = runCatching { g.optJSONArray("bands") }.getOrNull()
             if (bands != null) {
                 for (i in 0 until bands.length()) {
-                    r = sink.setParam(VipJamDispatcher.F_EQ, i, bands.optDouble(i).roundToInt()) && r
+                    val v = runCatching { bands.optDouble(i).roundToInt() }.getOrDefault(0)
+                    r = runCatching { sink.setParam(VipJamDispatcher.F_EQ, i, v) }.getOrDefault(false) and r
                 }
             }
             r
-        } && ok
+        } and ok
         ok = group(obj, VipJamEffects.REVERB) { g ->
-            sink.setParam(VipJamDispatcher.P_REVERB_ENABLE, if (g.optBoolean("enable")) 1 else 0) &&
+            val en = runCatching {
+                sink.setParam(VipJamDispatcher.P_REVERB_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            }.getOrDefault(false)
+            val param = runCatching {
                 sink.setParam(
                     VipJamDispatcher.F_REVERB,
                     g.optInt("roomSize", 0),
                     g.optInt("width", 0),
                     g.optInt("damp", 0),
                 )
-        } && ok
+            }.getOrDefault(false)
+            en and param
+        } and ok
+        ok = group(obj, VipJamEffects.CONVOLVER) { g ->
+            runCatching {
+                sink.setParam(VipJamDispatcher.P_CONV_ENABLE, if (g.optBoolean("enable")) 1 else 0)
+            }.getOrDefault(false)
+        } and ok
+        skipUnmapped(obj)
         return ok
     }
 
@@ -90,7 +122,65 @@ object PresetApplier {
         key: String,
         fn: (JSONObject) -> Boolean,
     ): Boolean {
-        val g = obj.optJSONObject(key) ?: return true
-        return fn(g)
+        val g = runCatching { obj.optJSONObject(key) }.getOrNull() ?: return true
+        return try {
+            fn(g)
+        } catch (e: Exception) {
+            Log.w(TAG, "apply: group $key failed, skipped", e)
+            false
+        }
     }
+
+    private fun skipUnmapped(obj: JSONObject) {
+        val keys = runCatching { obj.keys().asSequence().toSet() }.getOrNull() ?: return
+        for (key in keys) {
+            if (key in META_KEYS) continue
+            if (key in DISPATCHED_GROUPS) continue
+            if (key in PASS_THROUGH_GROUPS) {
+                Log.d(TAG, "apply: group $key has no driver param, skipped")
+                continue
+            }
+            if (key == JAMES_KEY) {
+                Log.d(TAG, "apply: james stages have no driver param, skipped")
+                continue
+            }
+            Log.w(TAG, "apply: unknown group skipped: $key")
+        }
+    }
+
+    private const val JAMES_KEY = "james"
+
+    private val META_KEYS = setOf("schemaVersion", "origin", "name", "masterEnable", "route")
+
+    private val DISPATCHED_GROUPS = setOf(
+        VipJamEffects.BASS,
+        VipJamEffects.CLARITY,
+        VipJamEffects.EQ,
+        VipJamEffects.REVERB,
+        VipJamEffects.CONVOLVER,
+    )
+
+    private val PASS_THROUGH_GROUPS = setOf(
+        VipJamEffects.MASTER_LIMITER,
+        VipJamEffects.PLAYBACK_GAIN,
+        VipJamEffects.LUFS,
+        VipJamEffects.FET,
+        VipJamEffects.MBC,
+        VipJamEffects.DDC,
+        VipJamEffects.SPECTRUM,
+        VipJamEffects.DYN_EQ,
+        VipJamEffects.FIELD,
+        VipJamEffects.DIFF,
+        VipJamEffects.STEREO_IMG,
+        VipJamEffects.HSURR,
+        VipJamEffects.DYN_SYS,
+        VipJamEffects.PSYCHO_BASS,
+        VipJamEffects.BASS_MONO,
+        VipJamEffects.CURE,
+        VipJamEffects.TUBE,
+        VipJamEffects.ANALOGX,
+        VipJamEffects.SPEAKER,
+        VipJamEffects.LOUDNESS,
+        VipJamEffects.LIVEPROG,
+    )
 }

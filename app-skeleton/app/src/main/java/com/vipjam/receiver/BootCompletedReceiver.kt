@@ -22,15 +22,21 @@ class BootCompletedReceiver : BroadcastReceiver() {
         scope.launch {
             try {
                 val app = context.applicationContext
-                val prefs = app.prefs.data.first()
-                if (prefs[VipJamPrefs.MASTER_ENABLE] != true) return@launch
-                val presetName = prefs[VipJamPrefs.ACTIVE_PRESET]
+                val snap = app.prefs.data.first()
+                if (snap[VipJamPrefs.MASTER_ENABLE] != true) return@launch
+                val store = PresetStore(app.prefs)
+                val profile = snap[VipJamPrefs.ACTIVE_PROFILE]
+                val linked = if (!profile.isNullOrBlank() && profile in VipJamPrefs.Profiles.ALL) {
+                    runCatching { store.routePresetMap.first()[profile] }.getOrNull()
+                } else null
+                val presetName = linked ?: snap[VipJamPrefs.ACTIVE_PRESET]
                 if (presetName.isNullOrBlank()) {
                     VipJamService.start(app, true)
                     return@launch
                 }
-                val json = PresetStore(app.prefs).entries.first()
-                    .find { it.name == presetName }?.settingsJson
+                val json = runCatching {
+                    store.entries.first().find { it.name == presetName }?.settingsJson
+                }.getOrNull()
                 if (json.isNullOrBlank()) {
                     VipJamService.start(app, true)
                 } else {

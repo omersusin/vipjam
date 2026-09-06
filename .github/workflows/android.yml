@@ -192,7 +192,7 @@ jobs:
             echo "VIPJAM_KEY_ALIAS=vipjam" >> "$GITHUB_ENV"
             echo "VIPJAM_KEY_PASSWORD=vipjam123" >> "$GITHUB_ENV"
             echo "TEST_SIGNED=true" >> "$GITHUB_ENV"
-            echo "TEST-SIGNED-NOT-FOR-PUBLISHING" > /tmp/TEST-SIGNED.txt
+            echo "TEST-SIGNED-NOT-FOR-PUBLISHING" > "$GITHUB_WORKSPACE/TEST-SIGNED.txt"
           fi
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "VIPJAM_VERSION_NAME=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_ENV"
@@ -207,4 +207,4 @@ jobs:
           name: vipjam-release-apk
           path: |
             app-skeleton/app/build/outputs/apk/release/*.apk
-            /tmp/TEST-SIGNED.txt
+            TEST-SIGNED.txt

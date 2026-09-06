@@ -21,11 +21,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.vipjam.effect.VipJamEffects
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -70,13 +68,16 @@ fun EqCurveEditorCard(
     val padRightPx = with(density) { 12.dp.toPx() }
     val padTopPx = with(density) { 12.dp.toPx() }
     val padBottomPx = with(density) { 24.dp.toPx() }
+    val grabSlopPx = with(density) { 24.dp.toPx() }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val zeroColor = MaterialTheme.colorScheme.outline
     val curveColor = MaterialTheme.colorScheme.primary
+    val fillColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
     val dotFill = MaterialTheme.colorScheme.primaryContainer
     val dotCore = MaterialTheme.colorScheme.primary
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val labelStyle = TextStyle(fontSize = 10.sp, color = labelColor)
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
     val strokePx = with(density) { 3.dp.toPx() }
     val dotOuter = with(density) { 12.dp.toPx() }
     val dotOuterSel = with(density) { 16.dp.toPx() }
@@ -86,23 +87,40 @@ fun EqCurveEditorCard(
 
     fun bandCount() = bands.size
 
+    fun pickBand(touchX: Float, widthPx: Float): Int {
+        val n = bandCount()
+        if (n <= 0) return 0
+        var best = EqCurveMath.nearestBand(touchX, widthPx, padLeftPx, padRightPx, n)
+        var bestDist = Float.MAX_VALUE
+        for (i in 0 until n) {
+            val x = EqCurveMath.freqToX(EqCurveMath.bandFreqHz(i), widthPx, padLeftPx, padRightPx)
+            val d = kotlin.math.abs(x - touchX)
+            if (d < bestDist) {
+                bestDist = d
+                best = i
+            }
+        }
+        if (bestDist <= grabSlopPx) return best
+        return EqCurveMath.nearestBand(touchX, widthPx, padLeftPx, padRightPx, n)
+    }
+
+    val selectedText = selected?.let { i ->
+        val hz = EqCurveMath.shortFreqLabel(EqCurveMath.bandFreqHz(i))
+        val rounded = ((bands.getOrNull(i) ?: 0.0) * 10).roundToInt() / 10.0
+        "$hz Hz " + (if (rounded >= 0) "+" else "") + rounded + " dB"
+    } ?: "Drag a dot up or down to adjust that band"
+
     Card(modifier = modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("EQ curve", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Drag a dot up/down to adjust that band",
-                style = MaterialTheme.typography.labelMedium,
-            )
+            Text(selectedText, style = MaterialTheme.typography.labelMedium)
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .pointerInput(bands.size, padLeftPx, padRightPx) {
+                    .pointerInput(bands.size, padLeftPx, padRightPx, grabSlopPx) {
                         detectTapGestures { offset ->
-                            val idx = EqCurveMath.nearestBand(
-                                offset.x, size.width.toFloat(),
-                                padLeftPx, padRightPx, bandCount(),
-                            )
+                            val idx = pickBand(offset.x, size.width.toFloat())
                             val db = EqCurveMath.clampDb(
                                 EqCurveMath.yToDb(
                                     offset.y, size.height.toFloat(),
@@ -113,13 +131,10 @@ fun EqCurveEditorCard(
                             onBandChange(idx, db.toDouble())
                         }
                     }
-                    .pointerInput(bands.size, padLeftPx, padRightPx, padTopPx, padBottomPx) {
+                    .pointerInput(bands.size, padLeftPx, padRightPx, padTopPx, padBottomPx, grabSlopPx) {
                         detectDragGestures(
                             onDragStart = { offset ->
-                                selected = EqCurveMath.nearestBand(
-                                    offset.x, size.width.toFloat(),
-                                    padLeftPx, padRightPx, bandCount(),
-                                )
+                                selected = pickBand(offset.x, size.width.toFloat())
                             },
                             onDragEnd = { selected = null },
                             onDragCancel = { selected = null },
@@ -170,6 +185,16 @@ fun EqCurveEditorCard(
                         EqCurveMath.freqToX(EqCurveMath.bandFreqHz(i), w, padLeftPx, padRightPx),
                         EqCurveMath.dbToY(db.toFloat(), h, padTopPx, padBottomPx),
                     )
+                }
+                if (points.size > 1) {
+                    val zeroY = EqCurveMath.dbToY(0f, h, padTopPx, padBottomPx)
+                    val fill = Path().apply {
+                        addPath(smoothPathThrough(points))
+                        lineTo(points.last().x, zeroY)
+                        lineTo(points.first().x, zeroY)
+                        close()
+                    }
+                    drawPath(fill, fillColor)
                 }
                 drawPath(smoothPathThrough(points), curveColor, style = Stroke(width = strokePx))
                 points.forEachIndexed { i, p ->
