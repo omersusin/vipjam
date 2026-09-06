@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 3,
+  "origin": "james",
+  "name": "hpfloat",
+  "masterEnable": true,
+  "source": "jamesdsp",
+  "sourceName": "hpfloat.eel",
+  "route": "headset",
+  "james": {
+    "masterswitch": {
+      "limThreshold": -0.1,
+      "limRelease": 60.0,
+      "postGain": 0.0
+    },
+    "compression": {
+      "enable": false,
+      "timeConstant": 0.22,
+      "granularity": 2.0,
+      "tfResolution": 0.0,
+      "freqs": [],
+      "gains": []
+    },
+    "bass": {
+      "enable": false,
+      "maxGain": 5
+    },
+    "tone": {
+      "enable": false,
+      "filterType": 3,
+      "interpolation": 0,
+      "freqs": [],
+      "gains": []
+    },
+    "streq": {
+      "enable": false,
+      "graphicEq": "GraphicEQ: 0.0 0.0;"
+    },
+    "convolver": {
+      "enable": false,
+      "kernelFile": ""
+    },
+    "ddc": {
+      "enable": false,
+      "device": ""
+    },
+    "liveprog": {
+      "enable": true,
+      "scripts": [
+        "hpfloat.eel"
+      ]
+    },
+    "tube": {
+      "enable": false,
+      "drive": 2.0
+    },
+    "stereowide": {
+      "enable": false,
+      "mode": 60
+    },
+    "bs2b": {
+      "enable": false,
+      "mode": 0
+    },
+    "headphone": {
+      "enable": false,
+      "preset": 15
+    }
+  },
+  "sourceText": "desc: Hadamard Variable Delay Array\n\n@init\n// Constants\nprintf(\"hZero: %F\\n\", $hZero);\nprintf(\"hOne: %F\\n\", $hOne);\nprintf(\"hTwo: %F\\n\", $hTwo);\nprintf(\"hTen: %F\\n\", $hTen);\nprintf(\"hPinf: %F\\n\", $hPinf);\nprintf(\"hMinf: %F\\n\", $hMinf);\nprintf(\"hNaN: %F\\n\", $hNaN);\nprintf(\"hPi: %F\\n\", $hPi);\nprintf(\"hPi2: %F\\n\", $hPi2);\nprintf(\"hPi4: %F\\n\", $hPi4);\nprintf(\"hEe: %F\\n\", $hEe);\nprintf(\"hSqrt2: %F\\n\", $hSqrt2);\nprintf(\"hLn2: %F\\n\", $hLn2);\nprintf(\"hLn10: %F\\n\", $hLn10);\nprintf(\"hLog2_e: %F\\n\", $hLog2_e);\nprintf(\"hLog2_10: %F\\n\", $hLog2_10);\nprintf(\"hLog2_e: %F\\n\", $hLog2_e);\nprintf(\"HPA_MIN: %F\\n\", $HPA_MIN);\nprintf(\"HPA_MAX: %F\\n\", $HPA_MAX);\n// Arithmetic\nnum256b_1 = xFloatS(\"0.4121114214214945995439191\");\nnum256b_2 = xFloatF(-4.1456);\nstr1 = xF2str(num256b_2);\nflt1 = xF2f32(num256b_1);\nprintf(\"Load from string 1: %F\\nLoad from string 2: %s\\nConvert back to float32: %f\\n\", num256b_1, str1, flt1);\n\nvar1 = xAdd(num256b_1, num256b_2);\nvar2 = xSub(num256b_1, num256b_2);\nvar3 = xMul(num256b_1, num256b_2);\nvar4 = xDiv(num256b_1, num256b_2);\nvar5 = xclone(num256b_1);\nprintf(\"Add(var1): %F\\nSub(var2): %F\\nMul(var3): %F\\nDiv(var4): %F\\nCloned variable: %F\\n\", var1, var2, var3, var4, var5);\n\nvar6 = xsin(var1);\nvar7 = xcos(var2);\nvar8 = xtan(var3);\nvar9 = xasin(var1);\nvar10 = xacos(xfrac(var2));\nvar11 = xatan(var3);\nvar12 = xsinh(var1);\nvar13 = xcosh(var2);\nvar14 = xtanh(var3);\nvar15 = xasinh(var1);\nvar16 = xacosh(var2);\nvar17 = xatanh(xfrac(var3));\nvar18 = xatan2(xFloatS(\"-0.8\"), xFloatS(\"2.7\"));\nprintf(\"sin(var1): %F\\n\", var6);\nprintf(\"cos(var2): %F\\n\", var7);\nprintf(\"tan(var3): %F\\n\", var8);\nprintf(\"asin(var1): %F\\n\", var9);\nprintf(\"acos(xfrac(var2)): %F\\n\", var10);\nprintf(\"atan(var3): %F\\n\", var11);\nprintf(\"sinh(var1): %F\\n\", var12);\nprintf(\"cosh(var2): %F\\n\", var13);\nprintf(\"tanh(var3): %F\\n\", var14);\nprintf(\"asinh(var1): %F\\n\", var15);\nprintf(\"acosh(var2): %F\\n\", var16);\nprintf(\"atanh(frac(var3)): %F\\n\", var17);\nprintf(\"xatan2(-0.8, 2.7): %F\\n\", var18);\nvar19 = xround(xFloatS(\"-10.8\"));\nvar20 = xceil(xFloatS(\"-10.8\"));\nvar21 = xfloor(xFloatS(\"-10.8\"));\nvar22 = xtrunc(xFloatS(\"-10.8\"));\nvar23 = xfix(xFloatS(\"-10.8\"));\nvar24 = xfrac(xFloatS(\"80.84125\"));\nprintf(\"round(-10.8): %F\\nceil(-10.8): %F\\nfloor(-10.8): %F\\ntrunc(-10.8): %F\\nfix(-10.8): %F\\nfrac(-10.8): %F\\n\", var19, var20, var21, var22, var23, var24);\nvar25 = xNegation(var17);\nprintf(\"-var17 = %F\\n\", var25);\nvar26 = xsqrt(xabs(var22));\nvar27 = xexp(var22);\nprintf(\"sqrt(abs(var22)) = %F\\n\", var26);\n\nlogic1 = xequal(var5, num256b_1);\nlogic2 = xequal(var5, var20);\nprintf(\"Is var5 == num256b_1 -> %d\\n\", logic1);\nprintf(\"Is var5 == var20 -> %d\\n\", logic2);\nprintf(\"Is var6 <= var7 -> %d\\n\", xlessequal(var6, var7));\nprintf(\"Is var6 < var7 -> %d\\n\", xless(var6, var7));\nprintf(\"Is var18 >= var17 -> %d\\n\", xgreaterequal(var18, var17));\nprintf(\"Is var17 > var18 -> %d\\n\", xgreater(var17, var18));\n\nprintf(\"exp(0.421) = %F\\n\", xexp(xFloatS(\"2.214\")));\nprintf(\"exp2(0.421) = %F\\n\", xexp2(xFloatS(\"2.214\")));\nprintf(\"exp10(0.421) = %F\\n\", xexp10(xFloatS(\"2.214\")));\nprintf(\"log(0.221) = %F\\n\", xlog(xFloatS(\"2.214\")));\nprintf(\"log2(0.221) = %F\\n\", xlog2(xFloatS(\"2.214\")));\nprintf(\"log10(0.221) = %F\\n\", xlog10(xFloatS(\"2.214\")));\nprintf(\"pow(12.54, 16.45) = %F\\n\", xpow(xFloatS(\"12.54\"), xFloatS(\"16.45\")));\nprintf(\"intpow(12.54, 280) = %F\\n\", xintpow(xFloatS(\"12.54\"), 290));\n@sample\n"
+}

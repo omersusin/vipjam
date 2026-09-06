@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 3,
+  "origin": "james",
+  "name": "james_headset_demo",
+  "masterEnable": true,
+  "source": "jamesdsp",
+  "sourceName": "james_headset_demo.xml",
+  "route": "headset",
+  "james": {
+    "masterswitch": {
+      "limThreshold": -0.1,
+      "limRelease": 60.0,
+      "postGain": 0.0
+    },
+    "compression": {
+      "enable": false,
+      "timeConstant": 0.22,
+      "granularity": 2.0,
+      "tfResolution": 0.0,
+      "freqs": [],
+      "gains": []
+    },
+    "bass": {
+      "enable": true,
+      "maxGain": 5
+    },
+    "tone": {
+      "enable": true,
+      "filterType": 3,
+      "interpolation": 0,
+      "freqs": [
+        25.0,
+        40.0,
+        63.0,
+        100.0,
+        160.0,
+        250.0,
+        400.0,
+        630.0,
+        1000.0,
+        1600.0,
+        2500.0,
+        4000.0,
+        6300.0,
+        10000.0,
+        16000.0
+      ],
+      "gains": [
+        0.0,
+        0.0,
+        2.0,
+        3.0,
+        1.0,
+        0.0,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        2.0,
+        1.0,
+        0.0
+      ]
+    },
+    "streq": {
+      "enable": false,
+      "graphicEq": "GraphicEQ: 0.0 0.0;"
+    },
+    "convolver": {
+      "enable": false,
+      "kernelFile": ""
+    },
+    "ddc": {
+      "enable": false,
+      "device": ""
+    },
+    "liveprog": {
+      "enable": true,
+      "scripts": [
+        "demo.eel"
+      ]
+    },
+    "tube": {
+      "enable": false,
+      "drive": 2.0
+    },
+    "stereowide": {
+      "enable": false,
+      "mode": 60
+    },
+    "bs2b": {
+      "enable": true,
+      "mode": 5
+    },
+    "headphone": {
+      "enable": false,
+      "preset": 15
+    }
+  }
+}

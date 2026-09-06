@@ -1,0 +1,409 @@
+{
+  "presets": [
+    {
+      "name": "7Hz Timeless ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--7hz-timeless-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Audeze LCD-X ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--audeze-lcd-x-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Focal Utopia ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--focal-utopia-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Moondrop Blessing 2 ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--moondrop-blessing-2-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser HD 800 ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--sennheiser-hd-800-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser IE 300 ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--sennheiser-ie-300-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser IE600 ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--sennheiser-ie600-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony IER-Z1R ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--sony-ier-z1r-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Truthear x Crinacle Zero ParametricEQ",
+      "source": "autoeq-crinacle",
+      "file": "presets-universal/autoeq-crinacle--truthear-x-crinacle-zero-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "7Hz Salnotes Zero ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--7hz-salnotes-zero-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "AKG K371 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--akg-k371-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "AKG K702 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--akg-k702-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Audio-Technica ATH-M50x ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--audio-technica-ath-m50x-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Beyerdynamic DT 770 Pro ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--beyerdynamic-dt-770-pro-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Bose QuietComfort 45 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--bose-quietcomfort-45-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Etymotic ER2SE ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--etymotic-er2se-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Focal Clear ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--focal-clear-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "HIFIMAN Sundara ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--hifiman-sundara-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Moondrop Aria ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--moondrop-aria-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Philips SHP9500 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--philips-shp9500-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser HD 650 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--sennheiser-hd-650-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser HD 800 S ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--sennheiser-hd-800-s-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Shure SE215 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--shure-se215-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Shure SRH840 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--shure-srh840-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony IER-M9 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--sony-ier-m9-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony WH-1000XM4 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--sony-wh-1000xm4-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Tin HiFi T2 ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--tin-hifi-t2-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Truthear x Crinacle Zero ParametricEQ",
+      "source": "autoeq-oratory1990",
+      "file": "presets-universal/autoeq-oratory1990--truthear-x-crinacle-zero-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Apple AirPods Max ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--apple-airpods-max-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Apple AirPods Pro ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--apple-airpods-pro-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Bose QuietComfort 35 II ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--bose-quietcomfort-35-ii-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Jabra Elite 75t ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--jabra-elite-75t-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Samsung Galaxy Buds2 Pro ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--samsung-galaxy-buds2-pro-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony MDR-1A ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--sony-mdr-1a-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony WF-1000XM4 ParametricEQ",
+      "source": "autoeq-rtings",
+      "file": "presets-universal/autoeq-rtings--sony-wf-1000xm4-parametriceq.json",
+      "route": "headset"
+    },
+    {
+      "name": "hadamVerb",
+      "source": "jamesdsp",
+      "file": "presets-universal/jamesdsp--hadamverb.json",
+      "route": "headset"
+    },
+    {
+      "name": "hpfloat",
+      "source": "jamesdsp",
+      "file": "presets-universal/jamesdsp--hpfloat.json",
+      "route": "headset"
+    },
+    {
+      "name": "james_headset_demo",
+      "source": "jamesdsp",
+      "file": "presets-universal/jamesdsp--james-headset-demo.json",
+      "route": "headset"
+    },
+    {
+      "name": "default_m1",
+      "source": "viper-v1",
+      "file": "presets-universal/viper-v1--default-m1.json",
+      "route": "headset"
+    },
+    {
+      "name": "default_m1",
+      "source": "viper-v1",
+      "file": "presets-universal/viper-v1--default-m1-2.json",
+      "route": "headset"
+    },
+    {
+      "name": "default_m2",
+      "source": "viper-v1",
+      "file": "presets-universal/viper-v1--default-m2.json",
+      "route": "headset"
+    },
+    {
+      "name": "default_m2",
+      "source": "viper-v1",
+      "file": "presets-universal/viper-v1--default-m2-2.json",
+      "route": "headset"
+    },
+    {
+      "name": "default",
+      "source": "viper-v2",
+      "file": "presets-universal/viper-v2--default.json",
+      "route": "headset"
+    },
+    {
+      "name": "game_v2",
+      "source": "viper-v2",
+      "file": "presets-universal/viper-v2--game-v2.json",
+      "route": "headset"
+    },
+    {
+      "name": "movie_v2",
+      "source": "viper-v2",
+      "file": "presets-universal/viper-v2--movie-v2.json",
+      "route": "headset"
+    },
+    {
+      "name": "viper_v2_demo",
+      "source": "viper-v2",
+      "file": "presets-universal/viper-v2--viper-v2-demo.json",
+      "route": "headset"
+    },
+    {
+      "name": "7Hz Salnotes Zero",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--7hz-salnotes-zero.json",
+      "route": "headset"
+    },
+    {
+      "name": "AKG K701",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--akg-k701.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sennheiser HD 650",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--sennheiser-hd-650.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony MDR-1A",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--sony-mdr-1a.json",
+      "route": "headset"
+    },
+    {
+      "name": "Sony WF-1000XM3",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--sony-wf-1000xm3.json",
+      "route": "headset"
+    },
+    {
+      "name": "Truthear x Crinacle Zero RED",
+      "source": "wavelet",
+      "file": "presets-universal/wavelet--truthear-x-crinacle-zero-red.json",
+      "route": "headset"
+    },
+    {
+      "name": "60s_Radio-headset__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--60s-radio-headset-headset.json",
+      "route": "headset"
+    },
+    {
+      "name": "AKG_BASS__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--akg-bass-headset.json",
+      "route": "headset"
+    },
+    {
+      "name": "AKG_FULL__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--akg-full-headset.json",
+      "route": "headset"
+    },
+    {
+      "name": "Adi-bluetooth__bt_a2dp",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--adi-bluetooth-bt-a2dp.json",
+      "route": "bluetooth"
+    },
+    {
+      "name": "Adi-headset__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--adi-headset-headset.json",
+      "route": "headset"
+    },
+    {
+      "name": "Adi-speaker__speaker",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--adi-speaker-speaker.json",
+      "route": "speaker"
+    },
+    {
+      "name": "Airblade_2.3.22-headset__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--airblade-2-3-22-headset-headset.json",
+      "route": "headset"
+    },
+    {
+      "name": "Akg_K518le_V2-headset__headset",
+      "source": "wstxda",
+      "file": "presets-universal/wstxda--akg-k518le-v2-headset-headset.json",
+      "route": "headset"
+    }
+  ],
+  "counts": {
+    "autoeq-crinacle": 9,
+    "autoeq-oratory1990": 19,
+    "autoeq-rtings": 7,
+    "jamesdsp": 3,
+    "viper-v1": 4,
+    "viper-v2": 4,
+    "wavelet": 6,
+    "wstxda": 8
+  },
+  "unmapped": {
+    "autoeq-crinacle:sourcePreampDb": 9,
+    "autoeq-crinacle:sourceFilters": 9,
+    "autoeq-crinacle:sourceText": 9,
+    "autoeq-oratory1990:sourcePreampDb": 19,
+    "autoeq-oratory1990:sourceFilters": 19,
+    "autoeq-oratory1990:sourceText": 19,
+    "autoeq-rtings:sourcePreampDb": 7,
+    "autoeq-rtings:sourceFilters": 7,
+    "autoeq-rtings:sourceText": 7,
+    "jamesdsp:sourceText": 2,
+    "jamesdsp:liveprog.scripts": 2,
+    "viper-v1:32775": 2,
+    "viper-v1:65566": 2,
+    "viper-v1:65567": 2,
+    "viper-v1:65568": 2,
+    "viper-v1:65586": 2,
+    "viper-v1:65587": 1,
+    "viper-v1:65588": 2,
+    "wavelet:sourcePreampDb": 6,
+    "wavelet:sourceFilters": 6,
+    "wavelet:sourceText": 6,
+    "wstxda:65566": 7,
+    "wstxda:65567": 7,
+    "wstxda:65568": 7,
+    "wstxda:65586": 7,
+    "wstxda:65587": 5,
+    "wstxda:65588": 7,
+    "wstxda:65604": 1,
+    "wstxda:65605": 1,
+    "wstxda:65606": 1,
+    "wstxda:65607": 1,
+    "wstxda:65608": 1,
+    "wstxda:65609": 1
+  }
+}

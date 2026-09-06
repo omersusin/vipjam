@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 3,
+  "origin": "viper",
+  "name": "Adi-headset__headset",
+  "masterEnable": true,
+  "source": "wstxda",
+  "sourceName": "Adi-headset__headset.xml",
+  "route": "headset",
+  "masterLimiter": {
+    "threshold": 100,
+    "outputVolume": 100,
+    "channelPan": 0
+  },
+  "playbackGainControl": {
+    "enable": false,
+    "strength": 100,
+    "maxGain": 100,
+    "outputThreshold": 100
+  },
+  "lufs": {
+    "enable": false,
+    "target": 140,
+    "maxGain": 60,
+    "speed": 1
+  },
+  "fetCompressor": {
+    "enable": false,
+    "threshold": 0,
+    "ratio": 100,
+    "kneeAuto": true,
+    "knee": 0,
+    "kneeMulti": 0,
+    "gainAuto": true,
+    "gain": 0,
+    "attackAuto": true,
+    "attack": 20,
+    "maxAttack": 80,
+    "releaseAuto": true,
+    "release": 50,
+    "maxRelease": 100,
+    "crest": 20,
+    "adapt": 50,
+    "noClip": true
+  },
+  "multibandCompressor": {
+    "enable": false,
+    "bandEnables": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "crossovers": [
+      120,
+      500,
+      4000,
+      8000
+    ],
+    "thresholds": [
+      -18,
+      -18,
+      -18,
+      -18,
+      -18
+    ],
+    "ratios": [
+      50,
+      50,
+      50,
+      50,
+      50
+    ],
+    "gains": [
+      24,
+      24,
+      24,
+      24,
+      24
+    ],
+    "knees": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "kneeMultis": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "attacks": [
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "maxAttacks": [
+      44,
+      44,
+      44,
+      44,
+      44
+    ],
+    "releases": [
+      100,
+      100,
+      100,
+      100,
+      100
+    ],
+    "maxReleases": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "crests": [
+      100,
+      100,
+      100,
+      100,
+      100
+    ],
+    "adapts": [
+      50,
+      50,
+      50,
+      50,
+      50
+    ],
+    "kneeAutos": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "gainAutos": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "attackAutos": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "releaseAutos": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "noClips": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "ddc": {
+    "enable": true,
+    "device": "JBL J22.vdc"
+  },
+  "spectrumExtension": {
+    "enable": false,
+    "strength": 8200,
+    "exciter": 0
+  },
+  "equalizer": {
+    "enable": true,
+    "bandCount": 10,
+    "bands": [
+      4.5,
+      4.5,
+      3.5,
+      1.2,
+      1.0,
+      0.5,
+      1.4,
+      1.75,
+      3.5,
+      2.5
+    ],
+    "presetId": null
+  },
+  "dynamicEq": {
+    "enable": false,
+    "bandCount": 3,
+    "freqs": [
+      60,
+      150,
+      400
+    ],
+    "qs": [
+      100,
+      100,
+      150
+    ],
+    "gains": [
+      0,
+      0,
+      0
+    ],
+    "thresholds": [
+      -200,
+      -200,
+      -200
+    ],
+    "attacks": [
+      10,
+      10,
+      10
+    ],
+    "releases": [
+      100,
+      100,
+      100
+    ],
+    "filterTypes": [
+      0,
+      0,
+      0
+    ]
+  },
+  "convolver": {
+    "enable": true,
+    "kernelFile": "Studer +1dB Updated.irs",
+    "crossChannel": 0
+  },
+  "fieldSurround": {
+    "enable": true,
+    "widening": 4,
+    "midImage": 4,
+    "depth": 0
+  },
+  "diffSurround": {
+    "enable": false,
+    "delay": 15,
+    "reverse": false,
+    "wetDryMix": 100,
+    "lpCutoff": 0
+  },
+  "stereoImager": {
+    "enable": false,
+    "lowWidth": 100,
+    "midWidth": 100,
+    "highWidth": 100,
+    "lowCrossover": 200,
+    "highCrossover": 4000
+  },
+  "headphoneSurround": {
+    "enable": false,
+    "quality": 0
+  },
+  "reverb": {
+    "enable": false,
+    "roomSize": 0,
+    "width": 0,
+    "damp": 0,
+    "wet": 0,
+    "dry": 50
+  },
+  "dynamicSystem": {
+    "enable": true,
+    "presetId": null,
+    "device": 0,
+    "strength": 60,
+    "xLow": 1200,
+    "xHigh": 6200,
+    "yLow": 50,
+    "yHigh": 90,
+    "sideGainLow": 15,
+    "sideGainHigh": 10
+  },
+  "psychoacousticBass": {
+    "enable": false,
+    "cutoff": 80,
+    "intensity": 50,
+    "harmonicOrder": 3,
+    "originalLevel": 100
+  },
+  "bass": {
+    "enable": true,
+    "mode": 0,
+    "frequency": 78,
+    "gain": 250,
+    "antiPop": true
+  },
+  "bassMono": {
+    "enable": false,
+    "mode": 0,
+    "frequency": 55,
+    "gain": 50,
+    "antiPop": true
+  },
+  "clarity": {
+    "enable": true,
+    "mode": 0,
+    "gain": 200
+  },
+  "cure": {
+    "enable": false,
+    "crossfeedPreset": 0
+  },
+  "tubeSimulator": {
+    "enable": false
+  },
+  "analogX": {
+    "enable": true,
+    "mode": 1
+  },
+  "speakerCorrection": {
+    "enable": false
+  },
+  "65566": "50",
+  "65567": "80",
+  "65568": "400",
+  "65586": "100",
+  "65587": "0",
+  "65588": "100"
+}

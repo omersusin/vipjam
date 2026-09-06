@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,9 +20,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +37,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,13 +49,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -61,14 +65,18 @@ import com.vipjam.data.PresetSeeder
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
+import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.service.VipJamService
-import com.vipjam.ui.components.PopSwitch
+import com.vipjam.ui.components.DriverStatusDialog
+import com.vipjam.ui.components.PowerDot
 import com.vipjam.ui.components.SectionCard
 import com.vipjam.ui.theme.VipJamTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 val Context.prefs by preferencesDataStore("vipjam_prefs")
 
@@ -131,6 +139,10 @@ internal enum class SystemDetail(val label: String, val blurb: String) {
     About("About", "Version and schema")
 }
 
+private fun routeTitle(route: String): String =
+    route.lowercase().replaceFirstChar { it.uppercase() }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VipJamApp() {
     val context = LocalContext.current
@@ -140,6 +152,7 @@ fun VipJamApp() {
     var systemDetail by remember { mutableStateOf<SystemDetail?>(null) }
     var labTool by rememberSaveable { mutableStateOf(LabTool.TestTone) }
     var menuOpen by remember { mutableStateOf(false) }
+    var statusOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val store = remember { PresetStore(context.prefs) }
 
@@ -156,8 +169,41 @@ fun VipJamApp() {
     val activeName by context.prefs.data
         .map { it[VipJamPrefs.ACTIVE_PRESET] }
         .collectAsState(initial = null)
+    val profile by context.prefs.data
+        .map { it[VipJamPrefs.ACTIVE_PROFILE] ?: VipJamPrefs.Profiles.HEADSET }
+        .collectAsState(initial = VipJamPrefs.Profiles.HEADSET)
+
+    var driverText by remember { mutableStateOf("Probing driver") }
+    var driverOk by remember { mutableStateOf(false) }
+    var driverDone by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val outcome = withContext(Dispatchers.IO) {
+            val dispatcher = VipJamDispatcher(0)
+            try {
+                if (!dispatcher.create()) {
+                    Triple(false, "Driver not installed", true)
+                } else {
+                    val version = dispatcher.getParam(VipJamDispatcher.GET_VERSION_CODE)
+                    if (version == null) Triple(false, "Module missing", true)
+                    else Triple(true, "Driver v$version", false)
+                }
+            } finally {
+                dispatcher.release()
+            }
+        }
+        driverOk = outcome.first
+        driverText = outcome.second
+        driverDone = true
+    }
+
+    val dimAlpha by animateFloatAsState(
+        targetValue = if (masterOn) 1f else 0.38f,
+        animationSpec = tween(200),
+        label = "master-dim"
+    )
 
     fun persistMaster(on: Boolean) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         scope.launch {
             runCatching {
                 context.prefs.edit { it[VipJamPrefs.MASTER_ENABLE] = on }
@@ -166,6 +212,19 @@ fun VipJamApp() {
                 launch { snackbar.showSnackbar(if (on) "Master on" else "Master off") }
             }.onFailure {
                 launch { snackbar.showSnackbar("Master failed: ${it.message}") }
+            }
+        }
+    }
+
+    fun persistProfile(next: String) {
+        scope.launch {
+            runCatching {
+                context.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = next }
+                VipJamService.setProfile(context, next)
+            }.onSuccess {
+                launch { snackbar.showSnackbar("Output: ${routeTitle(next)}") }
+            }.onFailure {
+                launch { snackbar.showSnackbar("Output failed: ${it.message}") }
             }
         }
     }
@@ -225,6 +284,10 @@ fun VipJamApp() {
         detail = null
     }
 
+    if (statusOpen) {
+        DriverStatusDialog(onDismiss = { statusOpen = false })
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
@@ -258,93 +321,82 @@ fun VipJamApp() {
                         modifier = Modifier.semantics { heading() }
                     )
                 }
-            }
-        },
-        bottomBar = {
-            BottomAppBar {
-                TextButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        systemDetail = null
-                        detail = Detail.Presets
+            } else {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                "VipJam",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.semantics { heading() }
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                PowerDot(on = driverDone && driverOk)
+                                Text(
+                                    "${routeTitle(profile)} · $driverText",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (driverDone && !driverOk) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        }
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 48.dp)
-                ) {
-                    Text(
-                        text = activeName ?: "Choose preset",
-                        style = MaterialTheme.typography.bodyLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = if (masterOn) "On" else "Off",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    PopSwitch(checked = masterOn, onToggle = ::persistMaster)
-                }
-                Box {
-                    TextButton(
-                        onClick = { menuOpen = true },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Text("More")
-                    }
-                    DropdownMenu(
-                        expanded = menuOpen,
-                        onDismissRequest = { menuOpen = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Preset manager") },
+                    actions = {
+                        TextButton(
                             onClick = {
-                                menuOpen = false
+                                val order = VipJamPrefs.Profiles.ALL
+                                persistProfile(order[(order.indexOf(profile) + 1) % order.size])
+                            },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Devices")
+                        }
+                        TextButton(
+                            onClick = { statusOpen = true },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Status")
+                        }
+                        TextButton(
+                            onClick = {
                                 systemDetail = null
                                 detail = Detail.Presets
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Revert-to-flat") },
+                            },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Presets")
+                        }
+                        TextButton(
                             onClick = {
-                                menuOpen = false
-                                flattenEq()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Tone") },
-                            onClick = { openLab(LabTool.TestTone) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("LiveProg") },
-                            onClick = { openLab(LabTool.LiveProg) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("AutoEq") },
-                            onClick = { openLab(LabTool.AutoEq) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("App profiles") },
-                            onClick = { openSystem(SystemDetail.Apps) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Module installer") },
-                            onClick = { openSystem(SystemDetail.Module) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Diagnostics") },
-                            onClick = { openSystem(SystemDetail.Status) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("About") },
-                            onClick = { openSystem(SystemDetail.About) }
-                        )
+                                systemDetail = null
+                                detail = Detail.System
+                            },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Settings")
+                        }
                     }
+                )
+            }
+        },
+        floatingActionButton = {
+            if (current == null) {
+                FloatingActionButton(
+                    onClick = { persistMaster(!masterOn) },
+                    containerColor = if (masterOn) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    }
+                ) {
+                    PowerDot(on = masterOn)
                 }
             }
         }
@@ -360,6 +412,7 @@ fun VipJamApp() {
                     .widthIn(max = 840.dp)
                     .fillMaxWidth()
                     .fillMaxHeight()
+                    .graphicsLayer(alpha = if (current == null) dimAlpha else 1f)
             ) {
                 when (current) {
                     null -> HomeTab(
@@ -460,7 +513,7 @@ private fun SystemScreen(
                 ListItem(
                     headlineContent = { Text(entry.label) },
                     supportingContent = { Text(entry.blurb) },
-                    trailingContent = { Text("›") },
+                    trailingContent = { Text(">") },
                     modifier = Modifier.clickable { onDetailChange(entry) }
                 )
                 HorizontalDivider()
@@ -468,7 +521,7 @@ private fun SystemScreen(
             ListItem(
                 headlineContent = { Text("Lab tools") },
                 supportingContent = { Text("Tone, LiveProg and AutoEq") },
-                trailingContent = { Text("›") },
+                trailingContent = { Text(">") },
                 modifier = Modifier.clickable { onOpenLab() }
             )
             HorizontalDivider()

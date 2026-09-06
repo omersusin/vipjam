@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,12 +32,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.edit
 import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetImporter
 import com.vipjam.data.PresetStore
@@ -45,6 +51,8 @@ import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.service.VipJamService
 import com.vipjam.ui.components.DebouncedSliderRow
+import com.vipjam.ui.components.EffectGlyph
+import com.vipjam.ui.components.HybridSliderRow
 import com.vipjam.ui.components.PopSwitch
 import com.vipjam.ui.components.PowerDot
 import com.vipjam.ui.components.StripChevron
@@ -154,6 +162,11 @@ internal fun groupTitle(group: String): String = when (group) {
     VipJamEffects.CURE -> "Cure"
     VipJamEffects.ANALOGX -> "Analog"
     VipJamEffects.SPEAKER -> "Speaker"
+    VipJamEffects.SPECTRUM -> "Spectrum"
+    VipJamEffects.BASS_MONO -> "Bass Mono"
+    VipJamEffects.PSYCHO_BASS -> "Psycho Bass"
+    VipJamEffects.LOUDNESS -> "Loudness"
+    VipJamEffects.MBC -> "Multiband"
     else -> group.replaceFirstChar { it.uppercase() }
 }
 
@@ -175,6 +188,11 @@ internal fun groupBlurb(group: String): String = when (group) {
     VipJamEffects.CURE -> "High-frequency ease"
     VipJamEffects.ANALOGX -> "Console warmth"
     VipJamEffects.SPEAKER -> "Driver correction"
+    VipJamEffects.SPECTRUM -> "Extended highs"
+    VipJamEffects.BASS_MONO -> "Mono low end"
+    VipJamEffects.PSYCHO_BASS -> "Perceived low end"
+    VipJamEffects.LOUDNESS -> "Volume-matched tone"
+    VipJamEffects.MBC -> "Per-band dynamics"
     else -> "Stored in preset"
 }
 
@@ -615,6 +633,423 @@ fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        ConsoleChainSection(store = store, snackbar = snackbar, staggerBase = 0)
+        HybridChainSection(store = store, snackbar = snackbar)
+    }
+}
+
+internal val HYBRID_GROUPS = listOf(
+    VipJamEffects.MASTER_LIMITER,
+    VipJamEffects.PLAYBACK_GAIN,
+    VipJamEffects.FET,
+    VipJamEffects.DDC,
+    VipJamEffects.SPECTRUM,
+    VipJamEffects.EQ,
+    VipJamEffects.CONVOLVER,
+    VipJamEffects.FIELD,
+    VipJamEffects.DIFF,
+    VipJamEffects.REVERB,
+    VipJamEffects.DYN_SYS,
+    VipJamEffects.TUBE,
+    VipJamEffects.BASS,
+    VipJamEffects.BASS_MONO,
+    VipJamEffects.CLARITY,
+    VipJamEffects.CURE,
+    VipJamEffects.ANALOGX,
+    VipJamEffects.SPEAKER
+)
+
+internal fun groupInfoLine(group: String): String = when (group) {
+    VipJamEffects.MASTER_LIMITER -> "Stops loud peaks from clipping"
+    VipJamEffects.PLAYBACK_GAIN -> "Trims overall output loudness"
+    VipJamEffects.FET -> "Tames fast loud peaks"
+    VipJamEffects.DDC -> "Corrects your headphone model"
+    VipJamEffects.SPECTRUM -> "Restores high-frequency air"
+    VipJamEffects.EQ -> "Shapes bass to treble per band"
+    VipJamEffects.CONVOLVER -> "Applies a sampled room or device"
+    VipJamEffects.FIELD -> "Widens the stereo field"
+    VipJamEffects.DIFF -> "Adds spacious diffuse sound"
+    VipJamEffects.REVERB -> "Adds room echo and space"
+    VipJamEffects.DYN_SYS -> "Evens out quiet and loud parts"
+    VipJamEffects.TUBE -> "Adds warm tube-style drive"
+    VipJamEffects.BASS -> "Boosts low-end weight"
+    VipJamEffects.BASS_MONO -> "Keeps deep bass centered"
+    VipJamEffects.CLARITY -> "Lifts vocal presence and detail"
+    VipJamEffects.CURE -> "Softens harsh high frequencies"
+    VipJamEffects.ANALOGX -> "Adds console-style warmth"
+    VipJamEffects.SPEAKER -> "Corrects small speaker limits"
+    else -> "Stored in preset"
+}
+
+internal fun groupUnit(field: String): String = when (field) {
+    "gain", "drive", "threshold", "roomSize", "width", "damp" -> "%"
+    "crossfeedPreset" -> "mode"
+    else -> "dB"
+}
+
+@Composable
+fun HybridChainSection(
+    store: PresetStore,
+    snackbar: SnackbarHostState,
+    staggerBase: Int = 0
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    val debounce = rememberDebouncedDispatcher(scope)
+    val reducedMotion = rememberReducedMotion()
+    var entered by remember { mutableStateOf(reducedMotion) }
+    LaunchedEffect(Unit) { entered = true }
+    val entries by store.entries.collectAsState(initial = null)
+    val prefsData by context.prefs.data.collectAsState(initial = null)
+    val resolvedName: String? = prefsData?.get(VipJamPrefs.ACTIVE_PRESET)
+    val list = entries
+    val active: PresetEntry? = list?.let { all ->
+        all.find { it.name == resolvedName } ?: all.firstOrNull()
+    }
+    val enables = remember(active?.settingsJson) {
+        active?.let {
+            runCatching { PresetImporter.groupEnables(it.settingsJson).toMap() }.getOrNull()
+        }.orEmpty()
+    }
+    var expanded by rememberSaveable { mutableStateOf(setOf(VipJamEffects.EQ)) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var infoOpen by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var eqPresetOpen by remember { mutableStateOf(false) }
+
+    fun flipGroup(group: String, on: Boolean) {
+        val current = active ?: return
+        scope.launch {
+            val updated = runCatching {
+                PresetImporter.withGroupEnabled(current.settingsJson, group, on)
+            }.getOrElse {
+                snackbar.showSnackbar("Edit failed: ${it.message}")
+                return@launch
+            }
+            store.save(PresetEntry(current.name, updated))
+                .onSuccess {
+                    groupEnableParam(group)?.let { id ->
+                        VipJamService.dispatchParam(context, id, if (on) 1 else 0)
+                    }
+                    snackbar.showSnackbar("${groupTitle(group)} ${if (on) "on" else "off"}")
+                }
+                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+        }
+    }
+
+    fun onScalar(group: String, field: String, value: Double) {
+        val current = active ?: return
+        val live = try {
+            liveParam(
+                PresetApplier.withGroupScalar(current.settingsJson, group, field, value),
+                group,
+                field,
+            )
+        } catch (_: Exception) {
+            return
+        }
+        debounce("$group:$field:tx", 120L) {
+            if (live != null) {
+                VipJamService.dispatchParam(context, live.id, live.v0, live.v1, live.v2)
+            }
+        }
+        debounce("$group:$field:save", 400L) {
+            val latest = try {
+                store.entries.first().find { it.name == current.name }?.settingsJson
+            } catch (_: Exception) {
+                null
+            }
+            val merged = runCatching {
+                PresetApplier.withGroupScalar(latest ?: current.settingsJson, group, field, value)
+            }.getOrNull() ?: return@debounce
+            store.save(PresetEntry(current.name, merged))
+                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+        }
+    }
+
+    fun flattenEq() {
+        val current = active ?: return
+        val count = parseEqBandsStored(current.settingsJson)?.size ?: return
+        scope.launch {
+            val latest = try {
+                store.entries.first().find { it.name == current.name }?.settingsJson
+                    ?: current.settingsJson
+            } catch (_: Exception) {
+                current.settingsJson
+            }
+            var json = latest
+            for (i in 0 until count) {
+                json = runCatching {
+                    PresetApplier.withGroupScalar(json, VipJamEffects.EQ, i.toString(), 0.0)
+                }.getOrElse {
+                    snackbar.showSnackbar("Edit failed: ${it.message}")
+                    return@launch
+                }
+            }
+            store.save(PresetEntry(current.name, json))
+                .onSuccess { snackbar.showSnackbar("EQ flattened") }
+                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
+            for (i in 0 until count) {
+                VipJamService.dispatchParam(context, VipJamDispatcher.F_EQ, i, 0, 0)
+            }
+        }
+    }
+
+    fun applyEntry(entry: PresetEntry, all: List<PresetEntry>) {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        scope.launch {
+            val prefs = context.prefs.data.first()
+            val master = prefs[VipJamPrefs.MASTER_ENABLE] ?: false
+            val prevName = prefs[VipJamPrefs.ACTIVE_PRESET]
+            val prevJson = all.find { it.name == prevName }?.settingsJson
+            context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = entry.name }
+            VipJamService.applyPreset(context, entry.settingsJson, master)
+            val result = snackbar.showSnackbar(
+                message = "${entry.name} applied",
+                actionLabel = if (prevName != null && prevJson != null && prevName != entry.name) "Undo" else null,
+            )
+            if (result == SnackbarResult.ActionPerformed && prevName != null && prevJson != null) {
+                context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = prevName }
+                VipJamService.applyPreset(context, prevJson, master)
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = query,
+        onValueChange = { query = it },
+        label = { Text("Search effects") },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true
+    )
+    if (active == null) {
+        Text(
+            "No preset loaded",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    val visible = HYBRID_GROUPS.filter { it.contains(query, ignoreCase = true) || groupTitle(it).contains(query, ignoreCase = true) }
+    if (visible.isEmpty()) {
+        Text(
+            "No effects match \"$query\"",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+    visible.forEachIndexed { index, group ->
+        val on = enables[group] == true
+        val isOpen = expanded.contains(group)
+        val enableId = groupEnableParam(group)
+        val card: @Composable () -> Unit = {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .animateContentSize(chainAnimateSpec())
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(role = Role.Button) {
+                                expanded = if (isOpen) expanded - group else expanded + group
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        EffectGlyph(group = group, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(groupTitle(group), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                if (active.settingsJson == null) groupBlurb(group) else groupStatusLine(group, active.settingsJson),
+                                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        PopSwitch(
+                            checked = on,
+                            onToggle = { flipGroup(group, it) },
+                            enabled = enableId != null
+                        )
+                        StripChevron(expanded = isOpen)
+                    }
+                    AnimatedVisibility(
+                        visible = isOpen,
+                        enter = if (reducedMotion) fadeIn() else fadeIn(tween(240, easing = LinearOutSlowInEasing)),
+                        exit = fadeOut()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .clickable(role = Role.Button) {
+                                        infoOpen = if (infoOpen.contains(group)) infoOpen - group else infoOpen + group
+                                    },
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    "What does this do",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                StripChevron(expanded = infoOpen.contains(group))
+                            }
+                            AnimatedVisibility(
+                                visible = infoOpen.contains(group),
+                                enter = if (reducedMotion) fadeIn() else fadeIn(tween(240, easing = LinearOutSlowInEasing)),
+                                exit = fadeOut()
+                            ) {
+                                Text(
+                                    groupInfoLine(group),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (group == VipJamEffects.EQ) {
+                                val bands = parseEqBandsStored(active.settingsJson)
+                                if (bands == null) {
+                                    Text(
+                                        "No band data in this preset",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    ConsoleEqCurve(
+                                        bands = bands,
+                                        onBandChange = { i, db -> onScalar(group, i.toString(), db) }
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            resolvedName ?: "Preset",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TextButton(
+                                            onClick = { eqPresetOpen = true },
+                                            modifier = Modifier.heightIn(min = 48.dp)
+                                        ) { Text("Preset") }
+                                        TextButton(
+                                            onClick = ::flattenEq,
+                                            modifier = Modifier.heightIn(min = 48.dp)
+                                        ) { Text("Flatten") }
+                                    }
+                                    if (eqPresetOpen) {
+                                        (list ?: emptyList()).forEach { entry ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 48.dp)
+                                                    .clickable(role = Role.Button) {
+                                                        eqPresetOpen = false
+                                                        applyEntry(entry, list ?: emptyList())
+                                                    },
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                PowerDot(on = entry.name == resolvedName)
+                                                Text(
+                                                    entry.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.padding(start = 8.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    val parsed = runCatching { org.json.JSONObject(active.settingsJson).optJSONObject(group) }.getOrNull()
+                                    val specs = parsed?.let { sliderSpecs(group, it) }.orEmpty()
+                                    specs.forEach { spec ->
+                                        val v = specValue(group, spec, active.settingsJson)
+                                        HybridSliderRow(
+                                            label = spec.label,
+                                            value = v,
+                                            onValueChange = { onScalar(group, spec.field, it.toDouble()) },
+                                            valueRange = spec.range,
+                                            valueText = spec.format,
+                                            unit = groupUnit(spec.field)
+                                        )
+                                    }
+                                }
+                            } else {
+                                val parsed = runCatching { org.json.JSONObject(active.settingsJson).optJSONObject(group) }.getOrNull()
+                                if (parsed == null) {
+                                    Text(
+                                        "Could not read settings for this effect",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                } else {
+                                    val specs = sliderSpecs(group, parsed)
+                                    if (specs == null) {
+                                        Text(
+                                            if (enableId == null) "Stored in preset" else groupBlurb(group),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else if (specs.isEmpty()) {
+                                        Text(
+                                            "No band data in this preset",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        specs.forEach { spec ->
+                                            val v = specValue(group, spec, active.settingsJson)
+                                            HybridSliderRow(
+                                                label = spec.label,
+                                                value = v,
+                                                onValueChange = { onScalar(group, spec.field, it.toDouble()) },
+                                                valueRange = spec.range,
+                                                valueText = spec.format,
+                                                unit = groupUnit(spec.field),
+                                                enabled = enableId != null
+                                            )
+                                        }
+                                        if (enableId == null) {
+                                            Text(
+                                                "Stored in preset",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (reducedMotion) {
+            card()
+        } else {
+            val delay = consoleStaggerDelay(staggerBase + index).toInt()
+            AnimatedVisibility(
+                visible = entered,
+                enter = fadeIn(tween(240, delay, LinearOutSlowInEasing)) +
+                    slideInVertically(tween(240, delay, LinearOutSlowInEasing)) { it / 4 },
+                exit = fadeOut()
+            ) {
+                card()
+            }
+        }
     }
 }

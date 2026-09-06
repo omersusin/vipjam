@@ -1,0 +1,257 @@
+{
+  "schemaVersion": 3,
+  "origin": "viper",
+  "name": "7Hz Timeless ParametricEQ",
+  "masterEnable": true,
+  "source": "autoeq-crinacle",
+  "sourceName": "7Hz Timeless ParametricEQ.txt",
+  "route": "headset",
+  "masterLimiter": {
+    "outputVolume": 100,
+    "channelPan": 0,
+    "threshold": 100
+  },
+  "playbackGainControl": {
+    "enable": false,
+    "strength": 100,
+    "maxGain": 100,
+    "outputThreshold": 100
+  },
+  "lufs": {
+    "enable": false,
+    "target": 140,
+    "maxGain": 60,
+    "speed": 1
+  },
+  "fetCompressor": {
+    "enable": false,
+    "threshold": 0,
+    "ratio": 100,
+    "kneeAuto": true,
+    "knee": 0,
+    "kneeMulti": 0,
+    "gainAuto": true,
+    "gain": 0,
+    "attackAuto": true,
+    "attack": 20,
+    "maxAttack": 80,
+    "releaseAuto": true,
+    "release": 50,
+    "maxRelease": 100,
+    "crest": 100,
+    "adapt": 50,
+    "noClip": true
+  },
+  "multibandCompressor": {
+    "enable": false,
+    "bandEnables": "1;1;1;1;1",
+    "crossovers": "120;500;4000;8000",
+    "thresholds": "-18;-18;-18;-18;-18",
+    "ratios": "50;50;50;50;50",
+    "gains": "24;24;24;24;24",
+    "knees": "0;0;0;0;0",
+    "kneeMultis": "0;0;0;0;0",
+    "attacks": "1;1;1;1;1",
+    "maxAttacks": "44;44;44;44;44",
+    "releases": "100;100;100;100;100",
+    "maxReleases": "200;200;200;200;200",
+    "crests": "100;100;100;100;100",
+    "adapts": "50;50;50;50;50",
+    "kneeAutos": "1;1;1;1;1",
+    "gainAutos": "1;1;1;1;1",
+    "attackAutos": "1;1;1;1;1",
+    "releaseAutos": "1;1;1;1;1",
+    "noClips": "1;1;1;1;1"
+  },
+  "ddc": {
+    "enable": false,
+    "device": ""
+  },
+  "spectrumExtension": {
+    "enable": false,
+    "strength": 7600,
+    "exciter": 0
+  },
+  "equalizer": {
+    "enable": true,
+    "bandCount": 10,
+    "bands": [
+      -5.655724171646537,
+      -6.128585703928441,
+      -7.7162722729875695,
+      -7.125468004219888,
+      -4.938643183980012,
+      -4.541523483194746,
+      -7.650536653132301,
+      -3.2938213119911475,
+      -2.741136273832899,
+      -8.71157628550566
+    ],
+    "presetId": null
+  },
+  "dynamicEq": {
+    "enable": false,
+    "bandCount": 3,
+    "freqs": "60;150;400",
+    "qs": "100;100;150",
+    "gains": "0;0;0",
+    "thresholds": "-200;-200;-200",
+    "attacks": "10;10;10",
+    "releases": "100;100;100",
+    "filterTypes": "0;0;0"
+  },
+  "convolver": {
+    "enable": false,
+    "kernelFile": "",
+    "crossChannel": 0
+  },
+  "fieldSurround": {
+    "enable": false,
+    "widening": 0,
+    "midImage": 5,
+    "depth": 0
+  },
+  "diffSurround": {
+    "enable": false,
+    "delay": 5,
+    "reverse": false,
+    "wetDryMix": 100,
+    "lpCutoff": 0
+  },
+  "stereoImager": {
+    "enable": false,
+    "lowWidth": 100,
+    "midWidth": 100,
+    "highWidth": 100,
+    "lowCrossover": 200,
+    "highCrossover": 4000
+  },
+  "headphoneSurround": {
+    "enable": false,
+    "quality": 0
+  },
+  "reverb": {
+    "enable": false,
+    "roomSize": 0,
+    "width": 0,
+    "damp": 0,
+    "wet": 0,
+    "dry": 50
+  },
+  "dynamicSystem": {
+    "enable": false,
+    "presetId": null,
+    "device": 0,
+    "strength": 50,
+    "xLow": 100,
+    "xHigh": 5600,
+    "yLow": 40,
+    "yHigh": 80,
+    "sideGainLow": 50,
+    "sideGainHigh": 50
+  },
+  "psychoacousticBass": {
+    "enable": false,
+    "cutoff": 80,
+    "intensity": 50,
+    "harmonicOrder": 3,
+    "originalLevel": 100
+  },
+  "bass": {
+    "enable": false,
+    "mode": 0,
+    "frequency": 55,
+    "gain": 50,
+    "antiPop": true
+  },
+  "bassMono": {
+    "enable": false,
+    "mode": 0,
+    "frequency": 55,
+    "gain": 50,
+    "antiPop": true
+  },
+  "clarity": {
+    "enable": false,
+    "mode": 0,
+    "gain": 50
+  },
+  "cure": {
+    "enable": false,
+    "crossfeedPreset": 0
+  },
+  "tubeSimulator": {
+    "enable": false
+  },
+  "analogX": {
+    "enable": false,
+    "mode": 0
+  },
+  "speakerCorrection": {
+    "enable": false
+  },
+  "sourcePreampDb": -5.4,
+  "sourceFilters": [
+    {
+      "type": "LSC",
+      "fcHz": 105.0,
+      "gainDb": -0.1,
+      "q": 0.7
+    },
+    {
+      "type": "PK",
+      "fcHz": 5893.0,
+      "gainDb": 4.9,
+      "q": 1.12
+    },
+    {
+      "type": "PK",
+      "fcHz": 165.0,
+      "gainDb": -2.8,
+      "q": 0.8
+    },
+    {
+      "type": "PK",
+      "fcHz": 1985.0,
+      "gainDb": -3.0,
+      "q": 1.38
+    },
+    {
+      "type": "PK",
+      "fcHz": 760.0,
+      "gainDb": 2.0,
+      "q": 1.11
+    },
+    {
+      "type": "HSC",
+      "fcHz": 10000.0,
+      "gainDb": -3.7,
+      "q": 0.7
+    },
+    {
+      "type": "PK",
+      "fcHz": 8866.0,
+      "gainDb": 1.4,
+      "q": 4.46
+    },
+    {
+      "type": "PK",
+      "fcHz": 6009.0,
+      "gainDb": 1.1,
+      "q": 4.8
+    },
+    {
+      "type": "PK",
+      "fcHz": 5243.0,
+      "gainDb": -1.0,
+      "q": 6.0
+    },
+    {
+      "type": "PK",
+      "fcHz": 3241.0,
+      "gainDb": 0.6,
+      "q": 5.16
+    }
+  ],
+  "sourceText": "Preamp: -5.4 dB\nFilter 1: ON LSC Fc 105 Hz Gain -0.1 dB Q 0.70\nFilter 2: ON PK Fc 5893 Hz Gain 4.9 dB Q 1.12\nFilter 3: ON PK Fc 165 Hz Gain -2.8 dB Q 0.80\nFilter 4: ON PK Fc 1985 Hz Gain -3.0 dB Q 1.38\nFilter 5: ON PK Fc 760 Hz Gain 2.0 dB Q 1.11\nFilter 6: ON HSC Fc 10000 Hz Gain -3.7 dB Q 0.70\nFilter 7: ON PK Fc 8866 Hz Gain 1.4 dB Q 4.46\nFilter 8: ON PK Fc 6009 Hz Gain 1.1 dB Q 4.80\nFilter 9: ON PK Fc 5243 Hz Gain -1.0 dB Q 6.00\nFilter 10: ON PK Fc 3241 Hz Gain 0.6 dB Q 5.16\n"
+}
