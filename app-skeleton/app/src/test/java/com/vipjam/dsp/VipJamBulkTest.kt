@@ -43,7 +43,7 @@ class VipJamBulkTest {
         assertEquals(256, payload.size)
         assertEquals(10, leInts(payload, 1)[0])
         assertArrayEquals(levels, leFloats(payload, 4, 10), 0.0f)
-        for (i in (4 + 10 * 4) until 256) assertEquals(0, payload[i])
+        for (i in (4 + 10 * 4) until 256) assertEquals(0.toByte(), payload[i])
     }
 
     @Test
@@ -108,7 +108,7 @@ class VipJamBulkTest {
         assertEquals(0, head[0])
         assertEquals(32, head[1])
         assertArrayEquals(kern, leFloats(wire, 8, 32), 0.0f)
-        for (i in (8 + 32 * 4) until 8192) assertEquals(0, wire[i])
+        for (i in (8 + 32 * 4) until 8192) assertEquals(0.toByte(), wire[i])
     }
 
     @Test
@@ -236,7 +236,7 @@ class VipJamBulkTest {
         assertEquals(2, head[0])
         assertEquals(data.size, head[1])
         assertArrayEquals(data, wire.sliceArray(8 until 8 + data.size))
-        for (i in (8 + data.size) until 8192) assertEquals(0, wire[i])
+        for (i in (8 + data.size) until 8192) assertEquals(0.toByte(), wire[i])
     }
 
     @Test
