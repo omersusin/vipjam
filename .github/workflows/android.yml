@@ -145,6 +145,7 @@ jobs:
 
   release:
     name: Signed release APK
+    needs: [module-zip]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     defaults:
@@ -208,3 +209,19 @@ jobs:
           path: |
             app-skeleton/app/build/outputs/apk/release/*.apk
             TEST-SIGNED.txt
+
+      - name: Fetch module zip artifact
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v4
+        with:
+          name: vipjam-magisk
+          path: /tmp/vipjam-module
+
+      - name: Attach APK and module zip to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk=$(ls app-skeleton/app/build/outputs/apk/release/*.apk | head -1)
+          zip=$(ls /tmp/vipjam-module/vipjam-magisk-*.zip | head -1)
+          gh release upload "${GITHUB_REF#refs/tags/}" "$apk" "$zip" --clobber

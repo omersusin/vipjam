@@ -12,6 +12,9 @@ object VipJamPrefs {
     val ACTIVE_PRESET = stringPreferencesKey("active_preset")
     val CMD_SEQ = intPreferencesKey("cmd_seq")
 
+    fun effectKey(effectKey: String, jsonKey: String): String =
+        "${effectKey}_${jsonKey}"
+
     object Profiles {
         const val HEADSET = "headset"
         const val SPEAKER = "speaker"

@@ -148,6 +148,43 @@ internal fun DestinationGlyph(
                     cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx())
                 )
             }
+            TabPage.Module -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(4.dp.toPx(), 3.dp.toPx()),
+                    size = Size(16.dp.toPx(), 11.dp.toPx()),
+                    cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+                    style = Stroke(width = stroke)
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(center.x, 6.dp.toPx()),
+                    end = Offset(center.x, 13.dp.toPx()),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(9.dp.toPx(), 10.5.dp.toPx()),
+                    end = Offset(center.x, 13.5.dp.toPx()),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(15.dp.toPx(), 10.5.dp.toPx()),
+                    end = Offset(center.x, 13.5.dp.toPx()),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = tint,
+                    start = Offset(4.dp.toPx(), 20.dp.toPx()),
+                    end = Offset(20.dp.toPx(), 20.dp.toPx()),
+                    strokeWidth = stroke,
+                    cap = StrokeCap.Round
+                )
+            }
         }
     }
 }

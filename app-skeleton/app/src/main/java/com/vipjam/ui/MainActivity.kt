@@ -66,7 +66,8 @@ internal enum class TabPage(val label: String) {
     LiveProg("LiveProg"),
     AutoEq("AutoEq"),
     AppProfiles("Apps"),
-    Status("Status")
+    Status("Status"),
+    Module("Module")
 }
 
 @Composable
@@ -140,6 +141,7 @@ fun VipJamApp() {
                         TabPage.AutoEq -> AutoEqTab(snackbar)
                         TabPage.AppProfiles -> AppProfilesTab(snackbar)
                         TabPage.Status -> StatusTab(store)
+                        TabPage.Module -> ModuleTab(snackbar)
                     }
                 }
             }
