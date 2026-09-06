@@ -130,7 +130,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 return@launch
             }
             val existing = runCatching { PresetImporter.parseV3(text).getOrThrow().name }.getOrNull()
-            if (existing != null && list?.any { it.name == existing } == true) {
+            if (existing != null && entries?.any { it.name == existing } == true) {
                 overwriteName = existing
                 overwriteText = text
                 overwriteIsPaste = false
@@ -269,7 +269,7 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                 scope.launch {
                     val text = paste.trim()
                     val existing = runCatching { PresetImporter.parseV3(text).getOrThrow().name }.getOrNull()
-                    if (existing != null && list?.any { it.name == existing } == true) {
+            if (existing != null && entries?.any { it.name == existing } == true) {
                         overwriteName = existing
                         overwriteText = text
                         overwriteIsPaste = true
