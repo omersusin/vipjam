@@ -84,6 +84,14 @@ object PresetApplier {
                 sink.setParam(VipJamDispatcher.P_CONV_ENABLE, if (g.optBoolean("enable")) 1 else 0)
             }.getOrDefault(false)
         } and ok
+        ok = group(obj, VipJamEffects.MASTER_LIMITER) { g ->
+            runCatching {
+                sink.setParam(
+                    VipJamDispatcher.F_LIMITER,
+                    g.optInt("threshold", 100).coerceIn(0, 100),
+                )
+            }.getOrDefault(false)
+        } and ok
         for ((name, pid) in listOf(
             VipJamEffects.PLAYBACK_GAIN to VipJamDispatcher.P_PGC_ENABLE,
             VipJamEffects.DDC to VipJamDispatcher.P_DDC_ENABLE,
