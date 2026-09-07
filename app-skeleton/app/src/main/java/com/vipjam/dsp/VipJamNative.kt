@@ -18,6 +18,7 @@ object VipJamNative {
     const val BASS = 0x20040
     const val EQ = 0x20050
     const val REVERB = 0x20090
+    const val REVERB_WETDRY = 0x20091
     const val CLARITY = 0x200B0
     const val XFEED = 0x200C0
     const val TUBE = 0x200D0

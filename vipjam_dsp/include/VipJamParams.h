@@ -13,17 +13,28 @@ typedef enum {
     VIPJAM_AGC               = 0x20020,
     VIPJAM_FET_MBC           = 0x20030,
     VIPJAM_BASS              = 0x20040,
+    VIPJAM_BASS_MONO         = 0x20041,
     VIPJAM_EQ                = 0x20050,
     VIPJAM_DDC               = 0x20060,
     VIPJAM_CONVOLVER         = 0x20070,
     VIPJAM_SPACE             = 0x20080,
     VIPJAM_REVERB            = 0x20090,
+    // Companion to VIPJAM_REVERB carrying (wet, dry) in (v0, v1); v2 ignored.
+    // Why a second id: every fused record on the wire is (id, v0, v1, v2) --
+    // effect_param_t vsize is 1..3 int32 slots, HAL/AIDL/SHM all assume it --
+    // so the 5-tuple (room, width, damp, wet, dry) cannot fit one record.
+    // The chain stores both halves and re-applies the full 5-arg engine call
+    // on either half, so order does not matter. Absent => wet=0, dry=50
+    // (engine Reverberation ctor defaults). Inside the 0x20000..0x200FF
+    // passthrough range, so vipjam_shim_to_fused() forwards it untouched.
+    VIPJAM_REVERB_WETDRY     = 0x20091,
     VIPJAM_DYN_SYS           = 0x200A0,
     VIPJAM_CLARITY_SPECEX    = 0x200B0,
     VIPJAM_XFEED             = 0x200C0,
     VIPJAM_TUBE              = 0x200D0,
     VIPJAM_OUT_VOL_PAN       = 0x200E0,
     VIPJAM_SPEAKER_CORR      = 0x200F0,
+    VIPJAM_CHAIN_ORDER       = 0x200F1,
 } vipjam_fused_param_t;
 
 typedef enum {
@@ -134,6 +145,8 @@ static inline int32_t vipjam_shim_to_fused(int32_t id) {
     if ((id >= VIPER_NEW_FET_FIRST && id <= VIPER_NEW_FET_LAST) ||
         (id >= VIPER_NEW_MBC_FIRST && id <= VIPER_NEW_MBC_LAST))
         return VIPJAM_FET_MBC;
+    if (id >= VIPER_NEW_BASS_MONO_FIRST && id <= VIPER_NEW_BASS_MONO_LAST)
+        return VIPJAM_BASS_MONO;
     if (id >= VIPER_NEW_BASS_FIRST && id <= VIPER_NEW_PSYCHO_LAST)
         return VIPJAM_BASS;
     if (id >= VIPER_NEW_SPECEX_FIRST && id <= VIPER_NEW_SPECEX_LAST)

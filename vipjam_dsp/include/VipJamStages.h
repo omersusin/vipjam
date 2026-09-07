@@ -1,6 +1,12 @@
 #ifndef VIPJAM_STAGES_H
 #define VIPJAM_STAGES_H
 
+#define VIPJAM_CHAIN_ORDER_PENDING_NOTE \
+    "VIPJAM_CHAIN_ORDER (0x200F1) is reserved/pending: accepted and " \
+    "stored, NOT applied to audio. Process order stays fixed " \
+    "(James block, ViPER block, loudness, limiter pinned last) until " \
+    "chain + protocol + app land true reorder together."
+
 typedef enum {
     VJ_STAGE_JAMES_TUBE = 0,
     VJ_STAGE_JAMES_COMP,
@@ -30,6 +36,7 @@ typedef enum {
     VJ_STAGE_VIPER_CURE,
     VJ_STAGE_VIPER_TUBE,
     VJ_STAGE_VIPER_ANALOGX,
+    VJ_STAGE_BASS_MONO,
     VJ_STAGE_LOUDNESS,
     VJ_STAGE_LIMITER,
     VJ_STAGE_COUNT

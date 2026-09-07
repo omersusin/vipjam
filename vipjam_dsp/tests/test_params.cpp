@@ -4,6 +4,7 @@
 #include <vector>
 #include "VipJamParams.h"
 #include "VipJamChain.h"
+#include "VipJamChainOrder.h"
 #include "audio_effect_stub.h"
 #include "VipJamContext.cpp"
 
@@ -462,6 +463,50 @@ static void test_golden_sine(void) {    VipJamChain chain;
     CHECK(rms > 0.05 && rms < 0.9, msg);
 }
 
+static void test_chain_order(void) {
+    CHECK(VIPJAM_CHAIN_ORDER == 0x200F1, "chain order id reserved");
+    int good[3] = {VJ_STAGE_VIPER_BASS, VJ_STAGE_VIPER_IIR,
+                   VJ_STAGE_LIMITER};
+    CHECK(vipjam_chain_order_validate(good, 3) == VJ_ORDER_OK,
+          "order valid");
+    int noLimiter[2] = {VJ_STAGE_VIPER_BASS, VJ_STAGE_VIPER_IIR};
+    CHECK(vipjam_chain_order_validate(noLimiter, 2) ==
+              VJ_ORDER_LIMITER_NOT_LAST,
+          "order limiter pinned last");
+    int dup[3] = {VJ_STAGE_VIPER_BASS, VJ_STAGE_VIPER_BASS,
+                  VJ_STAGE_LIMITER};
+    CHECK(vipjam_chain_order_validate(dup, 3) == VJ_ORDER_DUPLICATE,
+          "order dup rejected");
+    int bad[2] = {999, VJ_STAGE_LIMITER};
+    CHECK(vipjam_chain_order_validate(bad, 2) == VJ_ORDER_BAD_ARG,
+          "order unknown stage rejected");
+    CHECK(vipjam_chain_order_validate(0, 0) == VJ_ORDER_BAD_ARG,
+          "order empty rejected");
+    VipJamChain chain;
+    CHECK(chain.setChainOrder(good, 3) == VJ_ORDER_OK,
+          "chain stores valid order");
+    CHECK(chain.setChainOrder(noLimiter, 2) == VJ_ORDER_LIMITER_NOT_LAST,
+          "chain rejects limiter-first");
+    int out[4];
+    CHECK(chain.getChainOrder(out, 4) == 3, "chain order len kept");
+    CHECK(out[2] == VJ_STAGE_LIMITER, "chain stored limiter last");
+    chain.setSamplingRate(44100);
+    chain.setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+    int rev[3] = {VJ_STAGE_VIPER_IIR, VJ_STAGE_VIPER_BASS,
+                  VJ_STAGE_LIMITER};
+    chain.setChainOrder(rev, 3);
+    VipJamChain other;
+    other.setSamplingRate(44100);
+    other.setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+    std::vector<float> a(512 * 2, 0.25f), b = a;
+    chain.process(a);
+    other.process(b);
+    bool same = a.size() == b.size();
+    for (size_t i = 0; same && i < a.size(); i++)
+        if (a[i] != b[i]) same = false;
+    CHECK(same, "stored order does not alter audio (pending)");
+}
+
 int main(void) {
     setbuf(stdout, NULL);
     test_shim_new_ids();
@@ -481,6 +526,7 @@ int main(void) {
     test_parametric_james();
     test_parametric_viper();
     test_golden_sine();
+    test_chain_order();
     if (failures == 0) printf("ALL GREEN\n");
     else printf("%d FAILURES\n", failures);
     return failures;

@@ -94,19 +94,22 @@ public:
     }
 
     // Returns true when new params were applied.
-    bool poll(VipJamChain& chain, uint32_t sampleRate) {
+    // processedFrames is the effect's real counter (caller-owned); the
+    // poller keeps no DSP counter of its own.
+    bool poll(VipJamChain& chain, uint32_t sampleRate,
+              uint64_t processedFrames) {
         if (!params_) return false;
         uint32_t count = vipjam_shm_update_count(params_, paramsLen_);
-        uint32_t bseq = 0, bcmd = 0, bsize = 0;
-        const void* bdata = nullptr;
-        if (bulk_)
-            vipjam_shm_bulk_read(bulk_, bulkLen_, 0, &bcmd, &bdata, &bsize),
-                bseq = bcmd ^ bsize;
-        if (count == lastCount_ && bseq == lastBulk_) return false;
+        uint32_t seq0 = bulkSeq(bulk_, bulkLen_, 0);
+        uint32_t seq1 = bulkSeq(bulk_, bulkLen_, VIPJAM_SHM_BULK_REGION);
+        if (count == lastCount_ && seq0 == lastBulk0_ &&
+            seq1 == lastBulk1_)
+            return false;
         lastCount_ = count;
-        lastBulk_ = bseq;
+        lastBulk0_ = seq0;
+        lastBulk1_ = seq1;
         applyAll(chain);
-        writeHeartbeat(chain, sampleRate);
+        writeHeartbeat(chain, sampleRate, processedFrames);
         return true;
     }
 
@@ -168,12 +171,16 @@ private:
                         if (data && size > 0 && size <= 1048576) {
                             std::string s((const char*)data, size);
                             s.push_back('\0');
-                            chain.loadLiveProg(s.c_str());
+                            if (chain.loadLiveProg(s.c_str()) > 0)
+                                chain.setStageEnabled(VJ_STAGE_JAMES_LIVEPROG,
+                                                      true);
                         }
                         break;
                     case VIPJAM_BULK_DDC_RESET:
+                        ddcReset(chain);
+                        break;
                     case VIPJAM_BULK_CONV_RESET:
-                        chain.reset();
+                        kernelReset(chain);
                         break;
                     case VIPJAM_BULK_VIPJAM_FULL:
                         break;  // full-state blob; fused path above covers it
@@ -184,13 +191,42 @@ private:
         }
     }
 
-    void writeHeartbeat(VipJamChain& chain, uint32_t sampleRate) {
+    // Selective resets: never chain.reset() here — that would wipe the
+    // limiter gate + loudness state. Mirrors legacy VipJamContext helpers:
+    // kernelReset() == drop staged kernel + viperKernelPrepare(0,0),
+    // scriptReset() == drop staged script (poller holds no staging, so the
+    // observable part is disabling the affected stage only).
+    static void ddcReset(VipJamChain& chain) {
+        chain.setStageEnabled(VJ_STAGE_VIPER_DDC, false);
+        chain.setStageEnabled(VJ_STAGE_JAMES_DDC, false);
+    }
+    static void kernelReset(VipJamChain& chain) {
+        chain.viperKernelPrepare(0, 0);
+        chain.setStageEnabled(VJ_STAGE_VIPER_CONV, false);
+    }
+    // Real bulk seq from the region header (hdr+8), not cmd^size which
+    // collides. Returns 0 when unmapped/uninit (magic/ver mismatch).
+    static uint32_t bulkSeq(const void* base, size_t len, uint32_t region) {
+        if (!base) return 0;
+        if (region != 0 && region != VIPJAM_SHM_BULK_REGION) return 0;
+        if (len < VIPJAM_SHM_BULK_SIZE) return 0;
+        const uint8_t* hdr = static_cast<const uint8_t*>(base) + region;
+        uint32_t magic = 0, ver = 0, seq = 0;
+        memcpy(&magic, hdr, 4);
+        memcpy(&ver, hdr + 4, 4);
+        memcpy(&seq, hdr + 8, 4);
+        if (magic != VIPJAM_SHM_MAGIC || ver != VIPJAM_SHM_VERSION) return 0;
+        return seq;
+    }
+
+    void writeHeartbeat(VipJamChain& chain, uint32_t sampleRate,
+                        uint64_t processedFrames) {
         if (!status_) return;
         VipJamStatus st;
         memset(&st, 0, sizeof(st));
         st.enabled = chain.isMasterEnabled() ? 1 : 0;
         st.configured = 1;
-        st.processedFrames = processedFrames_;
+        st.processedFrames = processedFrames;
         st.sampleRate = (int32_t)sampleRate;
         st.versionCode = 1;
         strncpy(st.versionName, "0.1.0-aidl", sizeof(st.versionName) - 1);
@@ -210,9 +246,11 @@ private:
     size_t bulkLen_ = 0;
     void* status_ = nullptr;
     size_t statusLen_ = 0;
-    uint32_t lastCount_ = 0;
-    uint32_t lastBulk_ = 0;
-    uint64_t processedFrames_ = 0;
+    // Sentinel init: vipjam_shm_update_count()/bulkSeq() return 0 on
+    // uninit/error, so 0 must NOT mean "already seen" — first poll applies.
+    uint32_t lastCount_ = 0xFFFFFFFFu;
+    uint32_t lastBulk0_ = 0xFFFFFFFFu;
+    uint32_t lastBulk1_ = 0xFFFFFFFFu;
 };
 
 // ---- IEffect-shaped skeleton (stub types; see README §1) ----
@@ -285,7 +323,7 @@ public:
     // FMQ worker body (called per block once FMQ exists): poll SHM then DSP.
     // Interleaved stereo float32 in-place.
     void processBlock(std::vector<float>& stereo) {
-        poller_.poll(chain_, chain_.samplingRate());
+        poller_.poll(chain_, chain_.samplingRate(), processedFrames_);
         if (!chain_.isMasterEnabled() || (stereo.size() & 1u)) return;
         chain_.process(stereo);
         processedFrames_ += (uint64_t)(stereo.size() / 2);
@@ -312,6 +350,7 @@ private:
     aidl_stub::DynamicsProcessing dp_;
     VipJamChain chain_;
     VipJamAidlShmPoller poller_;
+    uint64_t processedFrames_ = 0;
 };
 
 // ---- Required C exports (PLACEHOLDER signatures — VERIFY vs AOSP tree) ----

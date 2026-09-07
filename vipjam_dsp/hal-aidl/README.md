@@ -32,7 +32,7 @@ Methods on `IEffect` (one Binder object per opened effect instance):
 |---|---|
 | `open(Common, Specific)` | Validate `Common` (session, ioHandle, i/o `AudioChannelLayout`, `PcmType.FLOAT_32_BIT` only, sample rate, frame count). `setSamplingRate()` on `VipJamChain`; reject anything else with `EX_ILLEGAL_ARGUMENT` and stay bypassed. Store `Specific` union; we only accept the `dynamicsProcessing` arm, ignore/zero the vendor-extension arm. |
 | `close()` | Stop FMQ worker, release SHM maps, reset `VipJamChain`. |
-| `command(CommandId)` | Map at minimum: `START`→master on + `chain.reset()`; `STOP`→master off/bypass; `RESET`→`chain.reset()`; `SET_VOLUME_STEREO`→`setLoudnessVolume()`. Everything else → `EX_UNSUPPORTED_OPERATION`. (Legacy `EFFECT_CMD_*` codes do NOT exist here.) |
+| `command(CommandId)` | STUB: `START`→master on + `chain.reset()`; `STOP`→master off/bypass; `RESET`→`chain.reset()`; `SET_VOLUME_STEREO`→ refused (`-95`/`EX_UNSUPPORTED_OPERATION` placeholder — the skeleton takes no volume args, so it must NOT fake success; wiring to `setLoudnessVolume()` is future work). Everything else → `EX_UNSUPPORTED_OPERATION`. (Legacy `EFFECT_CMD_*` codes do NOT exist here.) |
 | `getState()` | Return `State`: `INIT` (constructed), `IDLE` (open), `PROCESSING` (started). |
 | `setParameter(Parameter)` | Accept `Parameter.common` (large-buffer tuning) + `Parameter.specific.dynamicsProcessing` (engine on/off, per-channel attack/release/threshold/ratio/knee, pre/post gains, limiter). Translate DP floats → `VipJamChain` setters + SHM-poll resync. Persist raw `VendorExtension` blobs untouched (opaque passthrough) so a future app vendor tag survives. |
 | `getParameter(Parameter.Id)` | Answer `common` (session/frames/rate) + the last-applied `dynamicsProcessing` snapshot. |
@@ -49,7 +49,10 @@ Methods on `IEffect` (one Binder object per opened effect instance):
 The AIDL effect loader `dlopen`s the lib and `dlsym`s entry points named by
 convention (legacy name was `AUDIO_EFFECT_LIBRARY_INFO_SYM`; AIDL uses the
 `createEffect`/`queryEffect`/`destroyEffect` trio — VERIFY against the
-concrete AOSP version before shipping):
+concrete AOSP version before shipping). STUB STATUS: the trio in
+`VipJamAidlEffect.cpp` is a placeholder link shape only (takes
+`const char* uuid` / opaque `void*` descriptor, NOT the real AIDL
+`Descriptor` parcel) and is UNCOMPILED — do not treat it as shippable:
 
 ```cpp
 extern "C" {
@@ -164,7 +167,8 @@ Driver role (effect side is read-mostly):
 ## 7. Files in this dir
 
 - `VipJamAidlEffect.cpp` — UNCOMPILED skeleton: `IEffect` method shapes +
-  `createEffect/queryEffect/destroyEffect` + SHM poll → `VipJamChain`.
+  STUB `createEffect/queryEffect/destroyEffect` (placeholder signatures) +
+  `SET_VOLUME_STEREO` refusal + SHM poll → `VipJamChain`.
 - `Android.bp` — best-effort Soong sketch (needs a real AOSP tree to close).
 - This `README.md` — the contract above.
 

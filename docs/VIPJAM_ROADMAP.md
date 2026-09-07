@@ -444,9 +444,18 @@ inaudible; fixed, range to 24dB) applied from day one.
   parametric mode (per-band freq/Q/type), `EqCurveGraph` + edit dialog,
   DynEQ tabs, drag-band + long-press add/delete + undo (alienware pattern),
   MBC/FET sliders + autos, DDC/Conv/DynSys pickers, curve preview.
-- Chain UI: **reorderable** (up/down, limiter pinned last — EasyEffects +
-  alienware double-confirmed); ViPER-only mode (authentic naming/order/limiter,
-  everything else off); collapsible plain-language explainers per section.
+- Chain UI: **display-order only (honest subset, 2026-09-07)** — `ChainOrder`
+  (validate/sanitize, limiter pinned last) + `ChainOrderCard` (up/down/reset,
+  DataStore `chain_display_order`, "DSP order unchanged" banner) sorts
+  Effects-tab sections for display; `VipJamChainOrder.h`
+  (validate/store, limiter-last) + `VIPJAM_CHAIN_ORDER=0x200F1` reserve the
+  protocol slot but `process()` still runs the fixed order and host tests
+  prove stored order does not alter audio. TRUE reorder (audible) still
+  needs chain + protocol + app together: per-stage processing inside both
+  upstream engines (today each is one monolithic `process()` call with a
+  hardcoded stage sequence), SHM/ext-block order array + version bump, and
+  dispatch in stored order. Limiter stays pinned last in all layers.
+  Never ship UI that claims audible reorder before the driver honors it;
 - Kernel library: convolver/DDC with search, custom sort, hide, groups +
   repo download (skip owned); **446 official DDC catalog supported via repo download (only hd600 demo ships in-tree)**, auto-install.
 - LiveProg: **4 chained scripts**, multi-select picker, mini IDE (highlight,
@@ -659,7 +668,8 @@ inaudible; fixed, range to 24dB) applied from day one.
   `vipjam.log` + in-app viewer; app root ops — RootShell exists (basic su),
   missing kernel staging/SHM writer/session monitor; output routing
   partial (route/device maps exist, switch UX unhardened);
-  reorderable chain UI (absent); Device/Settings sheets; dark toggle;
+   reorderable chain UI (display-order subset landed 2026-09-07 — audible
+   reorder still pending chain + protocol + app, see §5); Device/Settings sheets; dark toggle;
   ZH/RU; tablet layout.
   (verified 2026-09-06 against `git log` + file listing: struck EQ curve
   UI, per-app/per-device maps, AutoEq UI from REMAINING — all present.)

@@ -1,12 +1,18 @@
 #include "VipJamChain.h"
+#include "VipJamChainOrder.h"
 #include "james_bridge.h"
 #include "viper_bridge.h"
 #include "VipJamParams.h"
 #include <cmath>
 
 VipJamChain::VipJamChain()
-    : samplingRate_(44100), master_(true), limiterGate_(0.999999f) {
+    : samplingRate_(44100), master_(true), limiterGate_(0.999999f),
+      bassMonoA_(0.0f), bassMonoLpL_(0.0f), bassMonoLpR_(0.0f),
+      reverbRoom_(0.0f), reverbWidth_(0.0f), reverbDamp_(0.0f),
+      reverbWet_(0.0f), reverbDry_(50.0f), pendingOrderLen_(0) {
     for (int i = 0; i < VJ_STAGE_COUNT; i++) enabled_[i] = false;
+    for (int i = 0; i < 32; i++) pendingOrder_[i] = -1;
+    recomputeBassMono();
     jdsp_ = vj_james_create(samplingRate_);
     viper_ = vj_viper_create(samplingRate_);
 }
@@ -20,8 +26,21 @@ void VipJamChain::setSamplingRate(uint32_t rate) {
     if (rate < 8000 || rate > 192000) return;
     samplingRate_ = rate;
     loudness_.setSampleRate(rate);
+    recomputeBassMono();
     vj_james_set_rate(static_cast<vj_james_t *>(jdsp_), rate);
     vj_viper_set_rate(static_cast<vj_viper *>(viper_), rate);
+}
+
+void VipJamChain::recomputeBassMono() {
+    float sr = static_cast<float>(samplingRate_);
+    if (!(sr >= 8000.0f && sr <= 192000.0f)) sr = 44100.0f;
+    float x = 2.0f * 3.14159265358979323846f * 120.0f / sr;
+    float a = 1.0f - expf(-x);
+    if (!(a > 0.0f && a < 1.0f)) a = 1.0f - expf(-2.0f * 3.14159265358979323846f * 120.0f / 44100.0f);
+    if (!(a > 0.0f && a < 1.0f)) a = 0.0169f;
+    bassMonoA_ = a;
+    bassMonoLpL_ = 0.0f;
+    bassMonoLpR_ = 0.0f;
 }
 
 bool VipJamChain::anyJamesStageOn() const {
@@ -49,6 +68,13 @@ void VipJamChain::applyViperStage(vj_stage_t stage, bool enabled) {
 void VipJamChain::setStageEnabled(vj_stage_t stage, bool enabled) {
     if (stage < 0 || stage >= VJ_STAGE_COUNT) return;
     enabled_[stage] = enabled;
+    if (stage == VJ_STAGE_BASS_MONO) {
+        if (enabled) {
+            bassMonoLpL_ = 0.0f;
+            bassMonoLpR_ = 0.0f;
+        }
+        return;
+    }
     if (stage == VJ_STAGE_LOUDNESS) loudness_.setEnabled(enabled);
     else if (stage <= VJ_STAGE_JAMES_REVERB) applyJamesStage(stage, enabled);
     else if (stage < VJ_STAGE_LIMITER) applyViperStage(stage, enabled);
@@ -123,6 +149,11 @@ void VipJamChain::setViperBass(int mode, float factor) {
 
 void VipJamChain::setViperReverb(float room, float width, float damp,
                                  float wet, float dry) {
+    reverbRoom_ = room;
+    reverbWidth_ = width;
+    reverbDamp_ = damp;
+    reverbWet_ = wet;
+    reverbDry_ = dry;
     vj_viper_set_reverb(static_cast<vj_viper *>(viper_), room, width, damp,
                         wet, dry);
 }
@@ -170,6 +201,7 @@ static vj_stage_t enableIdToStage(int32_t id) {
     case 65544: return VJ_STAGE_VIPER_VHE;
     case 65557: return VJ_STAGE_VIPER_DIFF;
     case 65603: return VJ_STAGE_VIPER_SPK;
+    case VIPER_NEW_BASS_MONO_FIRST: return VJ_STAGE_BASS_MONO;
     default: return VJ_STAGE_COUNT;
     }
 }
@@ -207,6 +239,9 @@ int VipJamChain::setFusedParam(int32_t id, float v0, float v1, float v2) {
         vj_viper_set_bass(viper, (int)v1, v0);
         setStageEnabled(VJ_STAGE_VIPER_BASS, v0 != 0.0f);
         return 0;
+    case VIPJAM_BASS_MONO:
+        setStageEnabled(VJ_STAGE_BASS_MONO, v0 != 0.0f);
+        return 0;
     case VIPJAM_EQ:
         if (!(v0 >= 0.0f && v0 <= 30.0f)) return -1;
         if (!(v1 >= -12.0f && v1 <= 12.0f)) return -1;
@@ -223,7 +258,23 @@ int VipJamChain::setFusedParam(int32_t id, float v0, float v1, float v2) {
         if (!(v0 >= 0.0f && v0 <= 100.0f) || !(v1 >= 0.0f && v1 <= 100.0f) ||
             !(v2 >= 0.0f && v2 <= 100.0f))
             return -1;
-        vj_viper_set_reverb3(viper, v0, v1, v2);
+        // 3-slot wire record cannot carry wet/dry: latch this half and
+        // re-apply the full 5-arg call with the latched wet/dry half
+        // (engine defaults wet=0, dry=50 when VIPJAM_REVERB_WETDRY never came).
+        reverbRoom_ = v0;
+        reverbWidth_ = v1;
+        reverbDamp_ = v2;
+        vj_viper_set_reverb(viper, reverbRoom_, reverbWidth_, reverbDamp_,
+                            reverbWet_, reverbDry_);
+        setStageEnabled(VJ_STAGE_VIPER_REVERB, true);
+        return 0;
+    case VIPJAM_REVERB_WETDRY:
+        if (!(v0 >= 0.0f && v0 <= 100.0f) || !(v1 >= 0.0f && v1 <= 100.0f))
+            return -1;
+        reverbWet_ = v0;
+        reverbDry_ = v1;
+        vj_viper_set_reverb(viper, reverbRoom_, reverbWidth_, reverbDamp_,
+                            reverbWet_, reverbDry_);
         setStageEnabled(VJ_STAGE_VIPER_REVERB, true);
         return 0;
     case VIPJAM_XFEED:
@@ -273,8 +324,25 @@ unsigned int VipJamChain::viperKernelID() const {
     return vj_viper_kernel_id(static_cast<vj_viper *>(viper_));
 }
 
+int VipJamChain::setChainOrder(const int *stages, unsigned n) {
+    int rc = vipjam_chain_order_validate(stages, n);
+    if (rc != VJ_ORDER_OK) return rc;
+    for (unsigned i = 0; i < n; i++) pendingOrder_[i] = stages[i];
+    pendingOrderLen_ = n;
+    return VJ_ORDER_OK;
+}
+
+unsigned VipJamChain::getChainOrder(int *out, unsigned cap) const {
+    if (!out || cap == 0) return pendingOrderLen_;
+    unsigned n = pendingOrderLen_ < cap ? pendingOrderLen_ : cap;
+    for (unsigned i = 0; i < n; i++) out[i] = pendingOrder_[i];
+    return pendingOrderLen_;
+}
+
 void VipJamChain::reset() {
     limiterGate_ = 0.999999f;
+    bassMonoLpL_ = 0.0f;
+    bassMonoLpR_ = 0.0f;
     loudness_.reset();
     vj_viper_reset(static_cast<vj_viper *>(viper_));
     vj_viper_kernel_prepare(static_cast<vj_viper *>(viper_), 0, 0);
@@ -303,6 +371,9 @@ void VipJamChain::process(std::vector<float> &interleavedStereo) {
         static_cast<uint32_t>(interleavedStereo.size() / 2);
     if (frames == 0) return;
     if (!master_) return;
+    // NOTE: pendingOrder_ is stored metadata only (VIPJAM_CHAIN_ORDER_PENDING_NOTE).
+    // Audio still runs the fixed order below; true reorder needs per-stage
+    // processing inside both upstream engines plus protocol + app.
     if (anyJamesStageOn()) {
         vj_james_process(static_cast<vj_james_t *>(jdsp_),
                          interleavedStereo.data(), frames);
@@ -313,6 +384,33 @@ void VipJamChain::process(std::vector<float> &interleavedStereo) {
     }
     if (enabled_[VJ_STAGE_LOUDNESS]) {
         loudness_.process(interleavedStereo.data(), frames);
+    }
+    if (enabled_[VJ_STAGE_BASS_MONO]) {
+        float a = bassMonoA_;
+        if (!(a > 0.0f && a < 1.0f)) {
+            recomputeBassMono();
+            a = bassMonoA_;
+        }
+        float lpL = bassMonoLpL_;
+        float lpR = bassMonoLpR_;
+        if (!(lpL >= -8.0f && lpL <= 8.0f)) lpL = 0.0f;
+        if (!(lpR >= -8.0f && lpR <= 8.0f)) lpR = 0.0f;
+        float *d = interleavedStereo.data();
+        for (uint32_t i = 0; i < frames; i++) {
+            float xl = d[i * 2];
+            float xr = d[i * 2 + 1];
+            if (!(xl >= -8.0f && xl <= 8.0f)) xl = 0.0f;
+            if (!(xr >= -8.0f && xr <= 8.0f)) xr = 0.0f;
+            lpL += a * (xl - lpL);
+            lpR += a * (xr - lpR);
+            if (!(lpL >= -8.0f && lpL <= 8.0f)) lpL = 0.0f;
+            if (!(lpR >= -8.0f && lpR <= 8.0f)) lpR = 0.0f;
+            float lowMono = 0.5f * (lpL + lpR);
+            d[i * 2] = xl + (lowMono - lpL);
+            d[i * 2 + 1] = xr + (lowMono - lpR);
+        }
+        bassMonoLpL_ = lpL;
+        bassMonoLpR_ = lpR;
     }
     for (uint32_t i = 0; i < interleavedStereo.size(); i++) {
         float v = interleavedStereo[i];

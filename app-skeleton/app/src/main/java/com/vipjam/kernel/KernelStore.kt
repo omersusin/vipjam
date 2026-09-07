@@ -179,12 +179,22 @@ fun parseIrsBytes(bytes: ByteArray): Result<FloatArray> = runCatching {
 
 class KernelStore(private val context: Context) {
     fun stage(uri: Uri, displayName: String): Result<StagedKernel> = runCatching {
-        val kind = kindForName(displayName)
-            ?: throw IllegalArgumentException("unsupported file type: $displayName")
         val bytes = context.contentResolver.openInputStream(uri)?.use { ins ->
             readCapped(ins, STAGE_MAX_BYTES)
         } ?: throw IllegalArgumentException("cannot open file")
         require(bytes.isNotEmpty()) { "empty file" }
+        writeStaged(displayName, bytes)
+    }
+
+    fun stageBytes(displayName: String, bytes: ByteArray): Result<StagedKernel> = runCatching {
+        require(bytes.isNotEmpty()) { "empty file" }
+        require(bytes.size <= STAGE_MAX_BYTES) { "file too large" }
+        writeStaged(displayName, bytes)
+    }
+
+    private fun writeStaged(displayName: String, bytes: ByteArray): StagedKernel {
+        val kind = kindForName(displayName)
+            ?: throw IllegalArgumentException("unsupported file type: $displayName")
         when (kind) {
             KernelKind.VDC -> {
                 val text = runCatching { String(bytes, Charsets.UTF_8) }.getOrThrow()

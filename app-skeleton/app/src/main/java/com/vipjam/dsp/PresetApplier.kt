@@ -78,7 +78,17 @@ object PresetApplier {
                     g.optInt("damp", 0),
                 )
             }.getOrDefault(false)
-            en and param
+            // Wet/dry ride a second fused record (F_REVERB_WETDRY): the wire
+            // is 3 int slots, so the 5-tuple never fits one call. Defaults
+            // wet=0, dry=50 match the DSP engine when keys are absent.
+            val wetDry = runCatching {
+                sink.setParam(
+                    VipJamDispatcher.F_REVERB_WETDRY,
+                    g.optInt("wet", 0).coerceIn(0, 100),
+                    g.optInt("dry", 50).coerceIn(0, 100),
+                )
+            }.getOrDefault(false)
+            en and param and wetDry
         } and ok
         ok = group(obj, VipJamEffects.CONVOLVER) { g ->
             runCatching {
@@ -104,6 +114,7 @@ object PresetApplier {
             VipJamEffects.FIELD to VipJamDispatcher.P_VHE_ENABLE,
             VipJamEffects.DIFF to VipJamDispatcher.P_DIFF_ENABLE,
             VipJamEffects.SPEAKER to VipJamDispatcher.P_SPK_ENABLE,
+            VipJamEffects.BASS_MONO to VipJamDispatcher.P_BASS_MONO_ENABLE,
         )) {
             ok = group(obj, name) { g ->
                 val en = runCatching {
@@ -183,7 +194,7 @@ object PresetApplier {
         VipJamEffects.CURE,
     )
 
-    private val REVERB_FIELDS = setOf("roomSize", "width", "damp")
+    private val REVERB_FIELDS = setOf("roomSize", "width", "damp", "wet", "dry")
 
     private inline fun group(
         obj: JSONObject,

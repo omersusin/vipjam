@@ -48,6 +48,10 @@ static int32_t vipjam_handle_set_param(vipjam_context_t *ctx,
     }
     // Pass the RAW id: setFusedParam does enableId + shim translation itself.
     // (Passing a pre-fused id would translate twice and fail.)
+    // No per-id routing here: fused ids (incl. VIPJAM_REVERB_WETDRY 0x20091)
+    // pass vipjam_shim_to_fused() via the 0x20000..0x200FF passthrough and
+    // land in setFusedParam with the same (v0, v1, v2) slots; a 2-int vsize
+    // arrives as (v0, v1, v2=0), which the wet/dry half ignores in v2.
     return ctx->chain.setFusedParam(id, v0, v1, v2) == 0 ? VIPJAM_OK : VIPJAM_EINVAL;
 }
 

@@ -209,8 +209,8 @@
         "roomSize": {"type": "number", "minimum": 0, "maximum": 10},
         "width": {"type": "number", "minimum": 0, "maximum": 10},
         "damp": {"type": "number", "minimum": 0, "maximum": 10},
-        "wet": {"type": "number", "minimum": 0, "maximum": 100},
-        "dry": {"type": "number", "minimum": 0, "maximum": 100}
+        "wet": {"type": "number", "minimum": 0, "maximum": 100, "default": 0, "description": "Wet mix; applied via fused param 0x20091 (wire carries 3 slots, so wet/dry ride a second record). Absent => 0."},
+        "dry": {"type": "number", "minimum": 0, "maximum": 100, "default": 50, "description": "Dry mix; applied via fused param 0x20091. Absent => 50 (engine default)."}
       }
     },
     "dynamicSystem": {

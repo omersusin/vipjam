@@ -93,12 +93,21 @@ internal fun liveParam(settingsJson: String, group: String, field: String): Live
                 0,
             )
         VipJamEffects.REVERB ->
-            LiveParam(
-                VipJamDispatcher.F_REVERB,
-                g.optInt("roomSize", 0),
-                g.optInt("width", 0),
-                g.optInt("damp", 0),
-            )
+            if (field == "wet" || field == "dry") {
+                LiveParam(
+                    VipJamDispatcher.F_REVERB_WETDRY,
+                    g.optInt("wet", 0).coerceIn(0, 100),
+                    g.optInt("dry", 50).coerceIn(0, 100),
+                    0,
+                )
+            } else {
+                LiveParam(
+                    VipJamDispatcher.F_REVERB,
+                    g.optInt("roomSize", 0),
+                    g.optInt("width", 0),
+                    g.optInt("damp", 0),
+                )
+            }
         VipJamEffects.EQ -> {
             val index = field.toIntOrNull() ?: return null
             val bands = g.optJSONArray("bands") ?: return null
@@ -193,7 +202,7 @@ internal fun groupStatusLine(group: String, settingsJson: String): String {
     return when (group) {
         VipJamEffects.BASS -> "Gain ${g.optInt("gain", 50)}"
         VipJamEffects.CLARITY -> "Gain ${g.optInt("gain", 50)}"
-        VipJamEffects.REVERB -> "Room ${g.optInt("roomSize", 0)} · Width ${g.optInt("width", 0)}"
+        VipJamEffects.REVERB -> "Room ${g.optInt("roomSize", 0)} · Width ${g.optInt("width", 0)} · Wet ${g.optInt("wet", 0)}%"
         VipJamEffects.TUBE -> "Drive ${g.optInt("drive", 0)}%"
         VipJamEffects.MASTER_LIMITER -> "Ceiling ${g.optInt("threshold", 100)}%"
         VipJamEffects.CURE -> "Mode ${g.optInt("crossfeedPreset", 0)}"
@@ -238,6 +247,8 @@ internal fun sliderSpecs(group: String, g: JSONObject): List<SliderSpec>? = when
         SliderSpec("roomSize", "Room size", 0f..100f, 0f, ::percentFormat),
         SliderSpec("width", "Width", 0f..100f, 0f, ::percentFormat),
         SliderSpec("damp", "Damp", 0f..100f, 0f, ::percentFormat),
+        SliderSpec("wet", "Wet", 0f..100f, 0f, ::percentFormat),
+        SliderSpec("dry", "Dry", 0f..100f, 50f, ::percentFormat),
     )
     VipJamEffects.EQ -> {
         val bands = g.optJSONArray("bands") ?: return emptyList()
@@ -376,7 +387,7 @@ internal fun groupInfoLine(group: String): String = when (group) {
 }
 
 internal fun groupUnit(field: String): String = when (field) {
-    "gain", "drive", "threshold", "roomSize", "width", "damp" -> "%"
+    "gain", "drive", "threshold", "roomSize", "width", "damp", "wet", "dry" -> "%"
     "crossfeedPreset" -> "mode"
     else -> "dB"
 }
@@ -537,8 +548,10 @@ fun HybridChainSection(
         return
     }
     var staggerIndex = 0
+    ChainOrderCard()
+    val displayOrder = ChainOrder.sanitize(prefsData?.get(VipJamPrefs.CHAIN_DISPLAY_ORDER))
     EFFECT_SECTIONS.forEach { section ->
-        val visible = section.groups.filter(matchesQuery)
+        val visible = ChainOrder.sortForDisplay(section.groups.filter(matchesQuery), displayOrder)
         if (visible.isEmpty()) return@forEach
         SectionHeader(title = section.title, subtitle = "${section.subtitle} (${visible.size})")
         visible.forEach { group ->

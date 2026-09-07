@@ -3,6 +3,7 @@ package com.vipjam.ui
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.vipjam.dsp.LevelBus
 import com.vipjam.dsp.VipJamNative
 import com.vipjam.ui.components.EmptyState
 import com.vipjam.ui.components.SectionHeader
@@ -68,6 +70,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
     var durationSec by rememberSaveable { mutableStateOf(2f) }
     var playing by remember { mutableStateOf(false) }
     var liveRms by remember { mutableStateOf<Float?>(null) }
+    var livePeak by remember { mutableStateOf<Float?>(null) }
     var lastRms by remember { mutableStateOf<String?>(null) }
     val reducedMotion = rememberReducedMotion()
 
@@ -83,6 +86,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
             } catch (_: Exception) {
             }
             session.track = null
+            LevelBus.clear()
         }
     }
 
@@ -96,12 +100,15 @@ fun TestToneTab(snackbar: SnackbarHostState) {
             session.track?.stop()
         } catch (_: Exception) {
         }
+        LevelBus.clear()
     }
 
     fun play(processed: Boolean) {
         if (playing) return
         playing = true
         liveRms = null
+        livePeak = null
+        LevelBus.clear()
         val f = freq
         val g = gain / 100f
         val totalFrames = (RATE * durationSec).roundToInt().coerceAtLeast(RATE)
@@ -111,6 +118,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
             var done = 0
             var acc = 0.0
             var accN = 0L
+            var peakAcc = 0f
             var blocks = 0
             try {
                 if (processed) {
@@ -152,19 +160,28 @@ fun TestToneTab(snackbar: SnackbarHostState) {
                     }
                     if (processed && handle != 0L) VipJamNative.process(handle, buf, buf, n)
                     var b = 0.0
+                    var blockPeak = 0f
                     for (i in 0 until n) {
                         val s = buf[i * 2].toDouble()
                         b += s * s
+                        val a = kotlin.math.abs(buf[i * 2])
+                        if (a > blockPeak) blockPeak = a
                     }
                     acc += b
                     accN += n
+                    if (blockPeak > peakAcc) peakAcc = blockPeak
                     track.write(buf, 0, n * 2, AudioTrack.WRITE_BLOCKING)
                     phase += n
                     done += n
                     blocks++
                     if (blocks % 10 == 0) {
                         val r = sqrt(acc / accN).toFloat()
-                        withContext(Dispatchers.Main) { liveRms = r }
+                        val p = peakAcc
+                        LevelBus.publish(r, p, SystemClock.elapsedRealtime(), "test tone")
+                        withContext(Dispatchers.Main) {
+                            liveRms = r
+                            livePeak = p
+                        }
                     }
                 }
                 val rms = sqrt(acc / maxOf(accN, 1L)).toFloat()
@@ -197,6 +214,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
                     } catch (_: Exception) {
                     }
                 }
+                LevelBus.clear()
                 withContext(NonCancellable + Dispatchers.Main) {
                     if (session.track === track) session.track = null
                     playing = false
@@ -269,7 +287,11 @@ fun TestToneTab(snackbar: SnackbarHostState) {
         }
         if (playing) {
             Text(
-                liveRms?.let { "Playing… live RMS %.3f".format(it) } ?: "Playing…",
+                if (liveRms != null && livePeak != null) {
+                    "Playing… live RMS %.3f, peak %.3f".format(liveRms, livePeak)
+                } else {
+                    "Playing…"
+                },
                 style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                 color = MaterialTheme.colorScheme.primary,
             )

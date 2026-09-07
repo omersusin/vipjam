@@ -936,6 +936,7 @@ class VipJamService : Service() {
         private val KNOWN_PARAM_IDS = SINGLE_INT_PARAMS + setOf(
             VipJamDispatcher.F_EQ,
             VipJamDispatcher.F_REVERB,
+            VipJamDispatcher.F_REVERB_WETDRY,
             VipJamDispatcher.F_CLARITY,
             VipJamDispatcher.F_TUBE,
             VipJamDispatcher.F_XFEED,

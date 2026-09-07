@@ -111,7 +111,8 @@ internal enum class Detail(val label: String) {
 internal enum class LabTool(val label: String) {
     TestTone("Tone"),
     LiveProg("LiveProg"),
-    AutoEq("AutoEq")
+    AutoEq("AutoEq"),
+    Ddc("DDC")
 }
 
 internal enum class SystemDetail(val label: String, val blurb: String) {
@@ -416,6 +417,7 @@ private fun LabScreen(
                 LabTool.TestTone -> TestToneTab(snackbar)
                 LabTool.LiveProg -> LiveProgTab(snackbar)
                 LabTool.AutoEq -> AutoEqTab(snackbar)
+                LabTool.Ddc -> DdcTab(snackbar)
             }
         }
     }
@@ -449,7 +451,7 @@ private fun SystemScreen(
             }
             ListItem(
                 headlineContent = { Text("Lab tools") },
-                supportingContent = { Text("Tone, LiveProg and AutoEq") },
+                supportingContent = { Text("Tone, LiveProg, AutoEq and DDC") },
                 trailingContent = { Text(">") },
                 modifier = Modifier
                     .heightIn(min = 48.dp)

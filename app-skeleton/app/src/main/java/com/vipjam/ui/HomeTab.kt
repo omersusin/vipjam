@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.ui.components.EmptyState
+import com.vipjam.ui.components.LiveOutputMeter
 import com.vipjam.ui.components.LoadingState
 import com.vipjam.ui.components.PowerDot
 
@@ -134,6 +135,7 @@ fun HomeTab(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    LiveOutputMeter()
                 }
             }
         }

@@ -50,6 +50,8 @@ public:
                            unsigned int kernelId);
     unsigned int viperKernelID() const;
     void reset();
+    int setChainOrder(const int *stages, unsigned n);
+    unsigned getChainOrder(int *out, unsigned cap) const;
     void process(std::vector<float> &interleavedStereo);
     static void deinterleave(const float *in, float *left, float *right,
                              uint32_t frames);
@@ -61,12 +63,24 @@ private:
     bool anyJamesStageOn() const;
     void applyJamesStage(vj_stage_t stage, bool enabled);
     void applyViperStage(vj_stage_t stage, bool enabled);
+    void recomputeBassMono();
 
     uint32_t samplingRate_;
     bool enabled_[VJ_STAGE_COUNT];
     bool master_;
     float limiterGate_;
+    float bassMonoA_;
+    float bassMonoLpL_;
+    float bassMonoLpR_;
+    // Fused reverb is split across two wire records (see VipJamParams.h):
+    // VIPJAM_REVERB carries (room, width, damp), VIPJAM_REVERB_WETDRY
+    // carries (wet, dry). Both halves are latched here so each handler can
+    // re-apply the full 5-arg engine call. Defaults match the engine
+    // Reverberation ctor (wet 0, dry 50) when the wet/dry half never arrives.
+    float reverbRoom_, reverbWidth_, reverbDamp_, reverbWet_, reverbDry_;
     VipJamLoudness loudness_;
+    int pendingOrder_[32];
+    unsigned pendingOrderLen_;
     vj_james_t *jdsp_;
     vj_viper *viper_;
 };
