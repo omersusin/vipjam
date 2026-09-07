@@ -17,17 +17,20 @@ done
 sleep 15
 
 resetprop -n ro.audio.ignore_effects false 2>/dev/null || echo "resetprop ignore_effects failed"
-if [ -n "$MODDIR" ] && [ -f "$MODDIR/sepolicy.rule" ]; then
-  magiskpolicy --live --apply "$MODDIR/sepolicy.rule" 2>/dev/null || echo "sepolicy apply failed"
-fi
 
-if [ -f "$MODDIR/system/lib64/soundfx/libvipjam.so" ] || [ -f "$MODDIR/system/lib/soundfx/libvipjam.so" ]; then
-  for svc in audioserver mediaserver; do
-    if pidof "$svc" >/dev/null 2>&1; then
-      killall "$svc" 2>/dev/null || echo "killall $svc failed"
-    fi
-  done
-else
-  echo "vipjam driver .so missing in module, skipping audioserver restart"
+# NOTE: sepolicy moved to post-fs-data.sh (must apply before audioserver).
+
+# Audio server restart is opt-in only: touch $MODDIR/restart_audio to enable.
+# Unconditional killall causes audible glitch on every boot.
+if [ -f "$MODDIR/restart_audio" ]; then
+  if [ -f "$MODDIR/system/lib64/soundfx/libvipjam.so" ] || [ -f "$MODDIR/system/lib/soundfx/libvipjam.so" ]; then
+    for svc in audioserver mediaserver; do
+      if pidof "$svc" >/dev/null 2>&1; then
+        killall "$svc" 2>/dev/null || echo "killall $svc failed"
+      fi
+    done
+  else
+    echo "vipjam driver .so missing in module, skipping audioserver restart"
+  fi
 fi
 echo "vipjam service done"

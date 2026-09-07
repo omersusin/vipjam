@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -156,17 +157,17 @@ fun AutoEqTab(snackbar: SnackbarHostState) {
     val cache = remember(cacheGen) { AutoEqCache(context) }
     val downloader = remember { AutoEqDownloader() }
 
-    var fullUrl by remember { mutableStateOf("") }
-    var source by remember { mutableStateOf(KNOWN_SOURCES[0]) }
-    var modelPath by remember { mutableStateOf("") }
-    var sourceMenu by remember { mutableStateOf(false) }
-    var search by remember { mutableStateOf("") }
+    var fullUrl by rememberSaveable { mutableStateOf("") }
+    var source by rememberSaveable { mutableStateOf(KNOWN_SOURCES[0]) }
+    var modelPath by rememberSaveable { mutableStateOf("") }
+    var sourceMenu by rememberSaveable { mutableStateOf(false) }
+    var search by rememberSaveable { mutableStateOf("") }
     var profiles by remember { mutableStateOf(emptyList<CachedProfile>()) }
     var downloading by remember { mutableStateOf(false) }
-    var previewKey by remember { mutableStateOf<String?>(null) }
+    var previewKey by rememberSaveable { mutableStateOf<String?>(null) }
     var previewEq by remember { mutableStateOf<ParametricEq?>(null) }
-    var previewBands by remember { mutableStateOf(emptyList<Double>()) }
-    var apiQuery by remember { mutableStateOf("") }
+    var previewBands by rememberSaveable { mutableStateOf(emptyList<Double>()) }
+    var apiQuery by rememberSaveable { mutableStateOf("") }
     var apiResults by remember { mutableStateOf(emptyList<AutoEqSearchResult>()) }
     var apiSearching by remember { mutableStateOf(false) }
     var apiError by remember { mutableStateOf<String?>(null) }

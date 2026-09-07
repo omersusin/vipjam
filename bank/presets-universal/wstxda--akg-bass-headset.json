@@ -171,7 +171,7 @@
     ]
   },
   "ddc": {
-    "enable": true,
+    "enable": false,
     "device": "AKG EO-IG955.vdc"
   },
   "spectrumExtension": {
@@ -236,7 +236,7 @@
     ]
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "Samsung SoundAlive ((48k H-Edition)) 07.Clarity.irs",
     "crossChannel": 34
   },

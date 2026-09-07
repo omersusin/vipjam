@@ -21,7 +21,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.vipjam.data.PresetStore
@@ -103,7 +106,11 @@ fun HomeTab(
                                 onClick = { onSelectProfile(route) },
                                 modifier = Modifier
                                     .heightIn(min = 48.dp)
-                                    .semantics { contentDescription = "Output $route" }
+                                    .semantics {
+                                        contentDescription = "Output $route"
+                                        role = Role.Tab
+                                        selected = selected
+                                    }
                             ) {
                                 Text(
                                     route.replaceFirstChar { it.uppercase() },
@@ -139,10 +146,8 @@ fun HomeTab(
                     actionLabel = "Manage",
                     onAction = onOpenPresets
                 )
+                else -> HybridChainSection(store = store, snackbar = snackbar, staggerBase = 0)
             }
-        }
-        item {
-            HybridChainSection(store = store, snackbar = snackbar, staggerBase = 0)
         }
     }
 }

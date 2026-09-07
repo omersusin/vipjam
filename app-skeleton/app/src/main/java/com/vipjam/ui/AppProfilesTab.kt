@@ -34,6 +34,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -119,7 +120,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
     val presetNames = entries.map { it.name }
     var needsPerm by remember { mutableStateOf(true) }
     var permTick by remember { mutableStateOf(0) }
-    var search by remember { mutableStateOf("") }
+    var search by rememberSaveable { mutableStateOf("") }
     val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
@@ -334,7 +335,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         }
         itemsIndexed(shown, key = { _, it -> it.packageName }) { index, app ->
             StaggeredAppProfile(index, reducedMotion) {
-                var expanded by remember(app.packageName) { mutableStateOf(false) }
+                var expanded by rememberSaveable(app.packageName) { mutableStateOf(false) }
                 val assigned = appMap[app.packageName]
                 val isDisabled = assigned == null && parked.containsKey(app.packageName)
                 Box {

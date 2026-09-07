@@ -101,7 +101,7 @@
     "filterTypes": "0;0;0"
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "LoongFX-Default.irs",
     "crossChannel": 22
   },

@@ -66,7 +66,7 @@ fun DebouncedSliderRow(
             Text(
                 text = valueText(coerced),
                 style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.primary
             )
         }
         Slider(

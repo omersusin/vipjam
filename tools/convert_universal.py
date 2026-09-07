@@ -10,6 +10,11 @@ runtime when present; embedded fallbacks cover standalone use. Legacy XML
 numeric ids are routed with the classic/new id ranges documented in
 vipjam_dsp/include/VipJamParams.h. Unknown fields are preserved verbatim.
 
+Field shapes, required keys and ranges are defined in
+presets/preset.schema.json (loaded at runtime when present); validation here
+mirrors that file. Sparse presets validate; normalize_v2() densifies to the
+canonical bank form (every viper group incl. loudnessComp/liveprog).
+
 Usage:
     convert_universal.py INPUT [-o OUT.json] [--source TAG] [--name NAME]
     convert_universal.py --bank STAGING_DIR BANK_DIR
@@ -37,7 +42,23 @@ V23_CONVERT = Path(__file__).resolve().parent / "convert_v2_to_v3.py"
 SCHEMA_VERSION = 3
 ORIGINS = ("viper", "james", "vipjam")
 
-VIPER_GROUPS = {
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "presets" / "preset.schema.json"
+
+
+def _load_schema():
+    try:
+        return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+SCHEMA = _load_schema()
+
+VIPER_GROUPS = set(SCHEMA.get("properties", {}).keys()) - {
+    "schemaVersion", "origin", "name", "masterEnable", "route",
+    "source", "sourceName", "createdAt", "sourceText", "sourcePreampDb",
+    "sourceFilters", "sourceGraphicPoints", "james",
+} if SCHEMA else {
     "masterLimiter", "playbackGainControl", "lufs", "fetCompressor",
     "multibandCompressor", "ddc", "spectrumExtension", "equalizer",
     "dynamicEq", "convolver", "fieldSurround", "diffSurround",
@@ -46,6 +67,8 @@ VIPER_GROUPS = {
     "tubeSimulator", "analogX", "speakerCorrection", "loudnessComp",
     "liveprog",
 }
+
+CANONICAL_LOUDNESS = "loudnessComp"
 
 JAMES_STAGES = {
     "masterswitch", "compression", "bass", "tone", "streq", "convolver",
@@ -255,6 +278,9 @@ def _group_fields(group):
 def normalize_v2(v2, unmapped):
     out = {}
     order = list(_HV.GROUP_ORDER) if _HV is not None else sorted(VIPER_GROUPS)
+    for extra in ("loudnessComp", "liveprog"):
+        if extra not in order:
+            order.append(extra)
     for group in order:
         if group in v2 and isinstance(v2[group], dict):
             src = v2[group]
@@ -598,8 +624,8 @@ def validate_v3(p):
         errs.append("origin must be viper|james|vipjam")
     if not p.get("name"):
         errs.append("name must be non-empty")
-    if not p.get("source"):
-        errs.append("source must be non-empty")
+    if p.get("source") is not None and not p["source"]:
+        errs.append("source must be non-empty when present")
     eq = p.get("equalizer")
     if isinstance(eq, dict) and isinstance(eq.get("bands"), list):
         if eq.get("bandCount") != len(eq["bands"]):
@@ -610,12 +636,15 @@ def validate_v3(p):
                 break
     ddc = p.get("ddc")
     if isinstance(ddc, dict) and ddc.get("enable"):
-        for sr in ("sr44100", "sr48000"):
-            coeffs = ddc.get(sr)
-            if not isinstance(coeffs, list) or not coeffs:
-                errs.append(f"ddc enabled but {sr} missing/empty")
-            elif len(coeffs) % 5 != 0:
-                errs.append(f"ddc {sr} length % 5 != 0")
+        if isinstance(ddc.get("device"), str) and ddc["device"]:
+            pass
+        else:
+            for sr in ("sr44100", "sr48000"):
+                coeffs = ddc.get(sr)
+                if not isinstance(coeffs, list) or not coeffs:
+                    errs.append(f"ddc enabled but {sr} missing/empty (need SR coeffs or a device .vdc ref)")
+                elif len(coeffs) % 5 != 0:
+                    errs.append(f"ddc {sr} length % 5 != 0")
     fs = p.get("fieldSurround")
     if isinstance(fs, dict):
         w = fs.get("widening")

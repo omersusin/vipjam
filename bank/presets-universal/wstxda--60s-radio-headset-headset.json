@@ -171,7 +171,7 @@
     ]
   },
   "ddc": {
-    "enable": true,
+    "enable": false,
     "device": "Custom_jmxc23.vdc"
   },
   "spectrumExtension": {
@@ -236,7 +236,7 @@
     ]
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "Pod 4x12.irs",
     "crossChannel": 40
   },

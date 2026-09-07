@@ -34,6 +34,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -57,6 +59,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
+private val FlashFinishedSaver = Saver<FlashEvent.Finished?, List<Boolean>>(
+    save = { if (it == null) emptyList() else listOf(it.ok, it.needsReboot) },
+    restore = {
+        if (it.size < 2) null
+        else FlashEvent.Finished(it[0], it[1])
+    },
+)
+
 @Composable
 fun ModuleTab(snackbar: SnackbarHostState) {
     val context = LocalContext.current
@@ -67,12 +77,12 @@ fun ModuleTab(snackbar: SnackbarHostState) {
     var manager by remember { mutableStateOf<RootManager?>(null) }
     var prop by remember { mutableStateOf<Map<String, String>?>(null) }
     var inlineError by remember { mutableStateOf<String?>(null) }
-    var downloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf<Int?>(null) }
-    var flashing by remember { mutableStateOf(false) }
-    var showDialog by remember { mutableStateOf(false) }
-    var flashLog by remember { mutableStateOf(listOf<String>()) }
-    var finished by remember { mutableStateOf<FlashEvent.Finished?>(null) }
+    var downloading by rememberSaveable { mutableStateOf(false) }
+    var downloadProgress by rememberSaveable { mutableStateOf<Int?>(null) }
+    var flashing by rememberSaveable { mutableStateOf(false) }
+    var showDialog by rememberSaveable { mutableStateOf(false) }
+    var flashLog by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var finished by rememberSaveable(stateSaver = FlashFinishedSaver) { mutableStateOf<FlashEvent.Finished?>(null) }
     val reducedMotion = rememberReducedMotion()
 
     suspend fun probeNow() {

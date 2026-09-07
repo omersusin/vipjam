@@ -49,10 +49,19 @@ object PresetApplier {
                 sink.setParam(VipJamDispatcher.P_EQ_ENABLE, if (g.optBoolean("enable")) 1 else 0)
             }.getOrDefault(false)
             val bands = runCatching { g.optJSONArray("bands") }.getOrNull()
-            if (bands != null) {
-                for (i in 0 until bands.length()) {
-                    val v = runCatching { bands.optDouble(i).roundToInt() }.getOrDefault(0)
-                    r = runCatching { sink.setParam(VipJamDispatcher.F_EQ, i, v) }.getOrDefault(false) and r
+            val bandCount = g.optInt("bandCount", bands?.length() ?: 0)
+            if (bandCount > VipJamDispatcher.EQ_MAX_BANDS) {
+                Log.w(TAG, "apply: EQ bandCount $bandCount exceeds max ${VipJamDispatcher.EQ_MAX_BANDS}")
+                r = false
+            } else if (bands != null) {
+                if (bands.length() > VipJamDispatcher.EQ_MAX_BANDS || bandCount != bands.length()) {
+                    Log.w(TAG, "apply: EQ bandCount $bandCount != bands ${bands.length()}, skipped bands")
+                    r = false
+                } else {
+                    for (i in 0 until bands.length()) {
+                        val v = runCatching { bands.optDouble(i).roundToInt().coerceIn(-12, 12) }.getOrDefault(0)
+                        r = runCatching { sink.setParam(VipJamDispatcher.F_EQ, i, v) }.getOrDefault(false) and r
+                    }
                 }
             }
             r
@@ -120,7 +129,7 @@ object PresetApplier {
                 en and extra
             } and ok
         }
-        skipUnmapped(obj)
+        ok = skipUnmapped(obj) and ok
         return ok
     }
 
@@ -181,7 +190,10 @@ object PresetApplier {
         key: String,
         fn: (JSONObject) -> Boolean,
     ): Boolean {
-        val g = runCatching { obj.optJSONObject(key) }.getOrNull() ?: return true
+        val g = runCatching { obj.optJSONObject(key) }.getOrNull() ?: run {
+            Log.w(TAG, "apply: group $key absent, marking failed")
+            return false
+        }
         return try {
             fn(g)
         } catch (e: Exception) {
@@ -190,8 +202,9 @@ object PresetApplier {
         }
     }
 
-    private fun skipUnmapped(obj: JSONObject) {
-        val keys = runCatching { obj.keys().asSequence().toSet() }.getOrNull() ?: return
+    private fun skipUnmapped(obj: JSONObject): Boolean {
+        val keys = runCatching { obj.keys().asSequence().toSet() }.getOrNull() ?: return false
+        var ok = true
         for (key in keys) {
             if (key in META_KEYS) continue
             if (key in DISPATCHED_GROUPS) continue
@@ -204,7 +217,9 @@ object PresetApplier {
                 continue
             }
             Log.w(TAG, "apply: unknown group skipped: $key")
+            ok = false
         }
+        return ok
     }
 
     private const val JAMES_KEY = "james"

@@ -14,6 +14,11 @@ data class ImportedPreset(
 object PresetImporter {
     const val LINK_SCHEME = "vipjam://preset?c="
 
+    // Field shapes, required keys and ranges mirror presets/preset.schema.json.
+    // Sparse presets (any subset of groups) are accepted; dense bank form is
+    // produced by tools/convert_universal.py. JSON key for loudness is
+    // "loudnessComp" (VipJamEffects.LOUDNESS).
+
     private val viperGroups = setOf(
         VipJamEffects.MASTER_LIMITER,
         VipJamEffects.PLAYBACK_GAIN,
@@ -70,12 +75,17 @@ object PresetImporter {
                 if (!obj.isNull(key)) require(obj.opt(key) is String) { "$key must be a string" }
                 continue
             }
-            if (key == "sourcePreampDb" || key == "sourceFilters" || key == "sourceText") continue
+            if (key == "sourcePreampDb" || key == "sourceFilters" ||
+                key == "sourceGraphicPoints" || key == "sourceText"
+            ) continue
             if (key.toIntOrNull() != null) continue
+            if (key.startsWith("dsp.")) continue
             if (key == "james") {
                 val james = obj.getJSONObject("james")
                 for (stage in james.keys()) {
-                    require(stage in jamesStages) { "unknown james stage: $stage" }
+                    require(stage in jamesStages || stage.startsWith("dsp.")) {
+                        "unknown james stage: $stage"
+                    }
                 }
                 continue
             }
@@ -87,8 +97,15 @@ object PresetImporter {
                 require(eq.optInt("bandCount", -1) == bands.length()) {
                     "equalizer bandCount != len(bands)"
                 }
+                for (i in 0 until bands.length()) {
+                    val b = bands.optDouble(i, Double.NaN)
+                    require(b.isFinite() && b in -12.0..12.0) {
+                        "equalizer band $b out of range (-12,12)"
+                    }
+                }
             }
         }
+        checkRanges(obj)
         ImportedPreset(
             name = name,
             origin = origin,
@@ -107,10 +124,65 @@ object PresetImporter {
         }
     }
 
+    private fun range(obj: JSONObject, group: String, field: String, lo: Double, hi: Double) {
+        val g = obj.optJSONObject(group) ?: return
+        if (g.isNull(field)) return
+        val v = g.optDouble(field, Double.NaN)
+        require(v.isFinite() && v in lo..hi) { "$group.$field $v out of range ($lo,$hi)" }
+    }
+
+    private fun checkRanges(obj: JSONObject) {
+        range(obj, VipJamEffects.MASTER_LIMITER, "threshold", 30.0, 100.0)
+        range(obj, VipJamEffects.MASTER_LIMITER, "outputVolume", 1.0, 200.0)
+        range(obj, VipJamEffects.MASTER_LIMITER, "channelPan", -100.0, 100.0)
+        range(obj, VipJamEffects.PLAYBACK_GAIN, "strength", 50.0, 300.0)
+        range(obj, VipJamEffects.PLAYBACK_GAIN, "maxGain", 100.0, 1000.0)
+        range(obj, VipJamEffects.PLAYBACK_GAIN, "outputThreshold", 30.0, 100.0)
+        range(obj, VipJamEffects.FET, "threshold", -48.0, 0.0)
+        range(obj, VipJamEffects.SPECTRUM, "strength", 2200.0, 8200.0)
+        range(obj, VipJamEffects.SPECTRUM, "exciter", 0.0, 100.0)
+        range(obj, VipJamEffects.CONVOLVER, "crossChannel", 0.0, 100.0)
+        range(obj, VipJamEffects.FIELD, "widening", 0.0, 8.0)
+        range(obj, VipJamEffects.FIELD, "midImage", 0.0, 10.0)
+        range(obj, VipJamEffects.FIELD, "depth", 0.0, 10.0)
+        range(obj, VipJamEffects.DIFF, "delay", 1.0, 20.0)
+        range(obj, VipJamEffects.DIFF, "wetDryMix", 0.0, 100.0)
+        range(obj, VipJamEffects.DIFF, "lpCutoff", 0.0, 20000.0)
+        range(obj, VipJamEffects.REVERB, "roomSize", 0.0, 10.0)
+        range(obj, VipJamEffects.REVERB, "width", 0.0, 10.0)
+        range(obj, VipJamEffects.REVERB, "damp", 0.0, 10.0)
+        range(obj, VipJamEffects.REVERB, "wet", 0.0, 100.0)
+        range(obj, VipJamEffects.REVERB, "dry", 0.0, 100.0)
+        range(obj, VipJamEffects.DYN_SYS, "strength", 0.0, 100.0)
+        range(obj, VipJamEffects.DYN_SYS, "xLow", 0.0, 2400.0)
+        range(obj, VipJamEffects.DYN_SYS, "xHigh", 0.0, 12000.0)
+        range(obj, VipJamEffects.DYN_SYS, "yLow", 0.0, 200.0)
+        range(obj, VipJamEffects.DYN_SYS, "yHigh", 0.0, 300.0)
+        range(obj, VipJamEffects.DYN_SYS, "sideGainLow", 0.0, 100.0)
+        range(obj, VipJamEffects.DYN_SYS, "sideGainHigh", 0.0, 100.0)
+        range(obj, VipJamEffects.BASS, "frequency", 0.0, 135.0)
+        range(obj, VipJamEffects.BASS, "gain", 50.0, 1000.0)
+        range(obj, VipJamEffects.BASS_MONO, "frequency", 0.0, 135.0)
+        range(obj, VipJamEffects.BASS_MONO, "gain", 50.0, 1000.0)
+        range(obj, VipJamEffects.CLARITY, "gain", 0.0, 450.0)
+        obj.optJSONObject(VipJamEffects.DDC)?.let { ddc ->
+            if (ddc.optBoolean("enable", false) && ddc.optString("device", "").isEmpty()) {
+                for (sr in arrayOf("sr44100", "sr48000")) {
+                    val coeffs = ddc.optJSONArray(sr)
+                    require(coeffs != null && coeffs.length() > 0) {
+                        "ddc enabled but $sr missing/empty (need SR coeffs or a device .vdc ref)"
+                    }
+                    require(coeffs.length() % 5 == 0) { "ddc $sr length % 5 != 0" }
+                }
+            }
+        }
+    }
+
     fun withGroupEnabled(settingsJson: String, group: String, on: Boolean): String {
         require(group in viperGroups) { "unknown group: $group" }
         val obj = JSONObject(settingsJson)
-        obj.getJSONObject(group).put("enable", on)
+        val g = obj.optJSONObject(group) ?: JSONObject().also { obj.put(group, it) }
+        g.put("enable", on)
         return obj.toString()
     }
 

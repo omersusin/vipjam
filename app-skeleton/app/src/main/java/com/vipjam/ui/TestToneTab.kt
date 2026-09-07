@@ -26,6 +26,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,9 +63,9 @@ private class ToneSession {
 fun TestToneTab(snackbar: SnackbarHostState) {
     val scope = rememberCoroutineScope()
     val session = remember { ToneSession() }
-    var freq by remember { mutableStateOf(440f) }
-    var gain by remember { mutableStateOf(20f) }
-    var durationSec by remember { mutableStateOf(2f) }
+    var freq by rememberSaveable { mutableStateOf(440f) }
+    var gain by rememberSaveable { mutableStateOf(20f) }
+    var durationSec by rememberSaveable { mutableStateOf(2f) }
     var playing by remember { mutableStateOf(false) }
     var liveRms by remember { mutableStateOf<Float?>(null) }
     var lastRms by remember { mutableStateOf<String?>(null) }
@@ -227,7 +228,7 @@ fun TestToneTab(snackbar: SnackbarHostState) {
         }
         StaggeredTone(1, reducedMotion = reducedMotion) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatRow(label = "Gain", value = "%.0f %%".format(gain))
+                StatRow(label = "Gain", value = "${gain.roundToInt()} %")
                 Slider(
                     value = gain,
                     onValueChange = { gain = it },

@@ -24,15 +24,15 @@ REPLACE="
 ##########################################################################################
 
 set_permissions() {
-  set_perm_recursive $MODPATH$LIBDIR/lib/soundfx 0 0 0755 0644
-  chcon -R u:object_r:vendor_file:s0 $MODPATH$LIBDIR/lib/soundfx 2>/dev/null
+  set_perm_recursive "$MODPATH$LIBDIR/lib/soundfx" 0 0 0755 0644
+  chcon -R u:object_r:vendor_file:s0 "$MODPATH$LIBDIR/lib/soundfx" 2>/dev/null
   if [ "$IS64BIT" ]; then
-    set_perm_recursive $MODPATH$LIBDIR/lib64/soundfx 0 0 0755 0644
-    chcon -R u:object_r:vendor_file:s0 $MODPATH$LIBDIR/lib64/soundfx 2>/dev/null
+    set_perm_recursive "$MODPATH$LIBDIR/lib64/soundfx" 0 0 0755 0644
+    chcon -R u:object_r:vendor_file:s0 "$MODPATH$LIBDIR/lib64/soundfx" 2>/dev/null
   fi
-  set_perm $MODPATH/vipjam-ctl 0 0 0755
-  set_perm $MODPATH/aml.sh 0 0 0644
-  set_perm $MODPATH/system/bin/vipjam-ctl 0 0 0755
+  set_perm "$MODPATH/vipjam-ctl" 0 0 0755
+  set_perm "$MODPATH/aml.sh" 0 0 0644
+  set_perm "$MODPATH/system/bin/vipjam-ctl" 0 0 0755
 }
 
 ##########################################################################################
@@ -40,11 +40,11 @@ set_permissions() {
 ##########################################################################################
 
 SKIPUNZIP=1
-unzip -qjo "$ZIPFILE" 'common/functions.sh' -d $TMPDIR >&2
-. $TMPDIR/functions.sh
+unzip -qjo "$ZIPFILE" 'common/functions.sh' -d "$TMPDIR" >&2
+. "$TMPDIR/functions.sh"
 # KSU-Next/Magisk only keep whitelisted paths in MODPATH; ensure our
 # payload (install script + driver .so files + helpers) is really there.
-unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' 'vipjam-app.apk' -d $MODPATH >&2
+unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' 'vipjam-app.apk' -d "$MODPATH" >&2
 # VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
 . "$MODPATH/common/install.sh"
 LIBPATCH="$(cat "$MODPATH/libpatch.txt" 2>/dev/null)"

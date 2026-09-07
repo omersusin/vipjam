@@ -16,7 +16,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,11 +60,12 @@ import com.vipjam.kernel.StagedKernel
 import com.vipjam.kernel.convPush
 import com.vipjam.kernel.ddcStep
 import com.vipjam.service.VipJamService
-import com.vipjam.ui.components.DebouncedSliderRow
 import com.vipjam.ui.components.EffectGlyph
 import com.vipjam.ui.components.HybridSliderRow
 import com.vipjam.ui.components.PopSwitch
 import com.vipjam.ui.components.PowerDot
+import com.vipjam.ui.components.RailCard
+import com.vipjam.ui.components.SectionHeader
 import com.vipjam.ui.components.StripChevron
 import com.vipjam.ui.components.chainAnimateSpec
 import com.vipjam.ui.components.consoleStaggerDelay
@@ -134,28 +133,6 @@ internal fun groupEnableParam(group: String): Int? = when (group) {
     VipJamEffects.SPEAKER -> VipJamDispatcher.P_SPK_ENABLE
     else -> null
 }
-
-internal data class ChainStrip(
-    val key: String,
-    val title: String,
-    val groups: List<String>
-)
-
-internal val CHAIN_STRIPS = listOf(
-    ChainStrip("bass", "Bass", listOf(VipJamEffects.BASS)),
-    ChainStrip("clarity", "Clarity", listOf(VipJamEffects.CLARITY)),
-    ChainStrip("eq", "Equalizer", listOf(VipJamEffects.EQ)),
-    ChainStrip("reverb", "Reverb", listOf(VipJamEffects.REVERB)),
-    ChainStrip("conv", "Convolver", listOf(VipJamEffects.CONVOLVER)),
-    ChainStrip("tube", "Tube", listOf(VipJamEffects.TUBE)),
-    ChainStrip("dyn", "Dynamics", listOf(VipJamEffects.FET, VipJamEffects.DYN_SYS, VipJamEffects.MASTER_LIMITER)),
-    ChainStrip("spatial", "Spatial", listOf(VipJamEffects.FIELD, VipJamEffects.DIFF, VipJamEffects.STEREO_IMG, VipJamEffects.HSURR)),
-    ChainStrip("ddc", "Device Correction", listOf(VipJamEffects.DDC)),
-    ChainStrip("pgc", "Playback Gain", listOf(VipJamEffects.PLAYBACK_GAIN)),
-    ChainStrip("cure", "Cure", listOf(VipJamEffects.CURE)),
-    ChainStrip("anx", "Analog", listOf(VipJamEffects.ANALOGX)),
-    ChainStrip("spk", "Speaker", listOf(VipJamEffects.SPEAKER)),
-)
 
 internal fun groupTitle(group: String): String = when (group) {
     VipJamEffects.BASS -> "Bass"
@@ -226,25 +203,6 @@ internal fun groupStatusLine(group: String, settingsJson: String): String {
     }
 }
 
-internal fun stripSummary(strip: ChainStrip, enables: Map<String, Boolean>, settingsJson: String?): String {
-    if (settingsJson == null) return "Apply a preset to tune"
-    if (strip.groups.size == 1) {
-        val group = strip.groups.first()
-        if (enables[group] != true) return "Off"
-        if (group == VipJamEffects.EQ) {
-            val n = parseEqBandsStored(settingsJson)?.size ?: return "On"
-            return "$n bands"
-        }
-        return groupStatusLine(group, settingsJson)
-    }
-    val on = strip.groups.count { enables[it] == true }
-    if (strip.key == "dyn") {
-        fun flag(g: String) = if (enables[g] == true) "On" else "Off"
-        return "FET ${flag(VipJamEffects.FET)} · Sys ${flag(VipJamEffects.DYN_SYS)} · Lim ${flag(VipJamEffects.MASTER_LIMITER)}"
-    }
-    return "$on of ${strip.groups.size} on"
-}
-
 internal data class SliderSpec(
     val field: String,
     val label: String,
@@ -312,333 +270,6 @@ internal fun specValue(group: String, spec: SliderSpec, settingsJson: String): F
 }
 
 @Composable
-fun ConsoleChainSection(
-    store: PresetStore,
-    snackbar: SnackbarHostState,
-    staggerBase: Int = 0
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val debounce = rememberDebouncedDispatcher(scope)
-    val reducedMotion = rememberReducedMotion()
-    var entered by remember { mutableStateOf(reducedMotion) }
-    LaunchedEffect(Unit) { entered = true }
-    val entries by store.entries.collectAsState(initial = null)
-    val prefsData by context.prefs.data.collectAsState(initial = null)
-    val resolvedName: String? = prefsData?.get(VipJamPrefs.ACTIVE_PRESET)
-    val list = entries
-    val active: PresetEntry? = list?.let { all ->
-        all.find { it.name == resolvedName } ?: all.firstOrNull()
-    }
-    val enables = remember(active?.settingsJson) {
-        active?.let {
-            runCatching { PresetImporter.groupEnables(it.settingsJson).toMap() }.getOrNull()
-        }.orEmpty()
-    }
-    var expanded by remember { mutableStateOf(setOf(VipJamEffects.EQ)) }
-
-    fun flipGroup(group: String, on: Boolean) {
-        val current = active ?: return
-        scope.launch {
-            val updated = runCatching {
-                PresetImporter.withGroupEnabled(current.settingsJson, group, on)
-            }.getOrElse {
-                snackbar.showSnackbar("Edit failed: ${it.message}")
-                return@launch
-            }
-            store.save(PresetEntry(current.name, updated))
-                .onSuccess {
-                    groupEnableParam(group)?.let { id ->
-                        VipJamService.dispatchParam(context, id, if (on) 1 else 0)
-                    }
-                    snackbar.showSnackbar("${groupTitle(group)} ${if (on) "on" else "off"}")
-                }
-                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
-        }
-    }
-
-    fun onScalar(group: String, field: String, value: Double) {
-        val current = active ?: return
-        val live = try {
-            liveParam(
-                PresetApplier.withGroupScalar(current.settingsJson, group, field, value),
-                group,
-                field,
-            )
-        } catch (_: Exception) {
-            return
-        }
-        debounce("$group:$field:tx", 120L) {
-            if (live != null) {
-                VipJamService.dispatchParam(context, live.id, live.v0, live.v1, live.v2)
-            }
-        }
-        debounce("$group:$field:save", 400L) {
-            val latest = try {
-                store.entries.first().find { it.name == current.name }?.settingsJson
-            } catch (_: Exception) {
-                null
-            }
-            val merged = runCatching {
-                PresetApplier.withGroupScalar(latest ?: current.settingsJson, group, field, value)
-            }.getOrNull() ?: return@debounce
-            store.save(PresetEntry(current.name, merged))
-                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
-        }
-    }
-
-    fun flattenEq() {
-        val current = active ?: return
-        val count = parseEqBandsStored(current.settingsJson)?.size ?: return
-        scope.launch {
-            val latest = try {
-                store.entries.first().find { it.name == current.name }?.settingsJson
-                    ?: current.settingsJson
-            } catch (_: Exception) {
-                current.settingsJson
-            }
-            var json = latest
-            for (i in 0 until count) {
-                json = runCatching {
-                    PresetApplier.withGroupScalar(json, VipJamEffects.EQ, i.toString(), 0.0)
-                }.getOrElse {
-                    snackbar.showSnackbar("Edit failed: ${it.message}")
-                    return@launch
-                }
-            }
-            store.save(PresetEntry(current.name, json))
-                .onSuccess { snackbar.showSnackbar("EQ flattened") }
-                .onFailure { snackbar.showSnackbar("Edit failed: ${it.message}") }
-            for (i in 0 until count) {
-                VipJamService.dispatchParam(context, VipJamDispatcher.F_EQ, i, 0, 0)
-            }
-        }
-    }
-
-    if (active == null) {
-        Text(
-            "No preset loaded",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        return
-    }
-
-    CHAIN_STRIPS.forEachIndexed { index, strip ->
-        val stripBody: @Composable ColumnScope.() -> Unit = {
-            val stripOn = strip.groups.any { enables[it] == true }
-            val isOpen = strip.groups.any { expanded.contains(it) }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PowerDot(on = stripOn)
-                if (strip.groups.size == 1) {
-                    val group = strip.groups.first()
-                    PopSwitch(
-                        checked = enables[group] == true,
-                        onToggle = { flipGroup(group, it) }
-                    )
-                } else {
-                    PopSwitch(
-                        checked = stripOn,
-                        onToggle = { next ->
-                            strip.groups.forEach { flipGroup(it, next) }
-                        }
-                    )
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(role = Role.Button) {
-                            expanded = if (isOpen) {
-                                expanded - strip.groups.toSet()
-                            } else {
-                                expanded + strip.groups.first()
-                            }
-                        }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        strip.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        stripSummary(strip, enables, active.settingsJson),
-                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                StripChevron(expanded = isOpen)
-            }
-            AnimatedVisibility(
-                visible = isOpen,
-                enter = if (reducedMotion) fadeIn() else fadeIn(tween(240, easing = LinearOutSlowInEasing)),
-                exit = fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (strip.groups.size == 1) {
-                        SingleGroupBody(
-                            group = strip.groups.first(),
-                            settingsJson = active.settingsJson,
-                            onScalar = ::onScalar,
-                            onFlattenEq = ::flattenEq
-                        )
-                    } else {
-                        strip.groups.forEach { group ->
-                            SubToggleRow(
-                                group = group,
-                                on = enables[group] == true,
-                                hasActive = true,
-                                onToggle = { flipGroup(group, it) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        if (reducedMotion) {
-            ChainStripShell(content = stripBody)
-        } else {
-            val delay = consoleStaggerDelay(staggerBase + index).toInt()
-            AnimatedVisibility(
-                visible = entered,
-                enter = fadeIn(tween(240, delay, LinearOutSlowInEasing)) +
-                    slideInVertically(tween(240, delay, LinearOutSlowInEasing)) { it / 4 },
-                exit = fadeOut()
-            ) {
-                ChainStripShell(content = stripBody)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChainStripShell(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .animateContentSize(chainAnimateSpec())
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
-private fun SubToggleRow(
-    group: String,
-    on: Boolean,
-    hasActive: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clickable(enabled = hasActive, role = Role.Switch) { onToggle(!on) },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        PowerDot(on = on)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                groupTitle(group),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                if (groupEnableParam(group) == null) "Stored in preset" else if (on) "On" else "Off",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        PopSwitch(checked = on, onToggle = onToggle, enabled = hasActive)
-    }
-}
-
-@Composable
-private fun SingleGroupBody(
-    group: String,
-    settingsJson: String,
-    onScalar: (String, String, Double) -> Unit,
-    onFlattenEq: () -> Unit
-) {
-    if (group == VipJamEffects.EQ) {
-        val bands = parseEqBandsStored(settingsJson)
-        if (bands == null) {
-            Text(
-                "No band data in this preset",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            Text(
-                "Edited on the curve above",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(
-                    onClick = onFlattenEq,
-                    modifier = Modifier.heightIn(min = 48.dp)
-                ) {
-                    Text("Flatten")
-                }
-            }
-        }
-        return
-    }
-    val parsed = runCatching { JSONObject(settingsJson).optJSONObject(group) }.getOrNull()
-    if (parsed == null) {
-        Text(
-            "Could not read settings for this effect",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error
-        )
-        return
-    }
-    val specs = sliderSpecs(group, parsed)
-    if (specs == null) {
-        if (groupEnableParam(group) == null) {
-            Text(
-                "No live switch for this stage yet — stored in preset",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        return
-    }
-    specs.forEach { spec ->
-        val v = specValue(group, spec, settingsJson)
-        DebouncedSliderRow(
-            label = spec.label,
-            value = v,
-            onValueChange = { onScalar(group, spec.field, it.toDouble()) },
-            valueRange = spec.range,
-            valueText = { spec.format(it) }
-        )
-    }
-}
-
-@Composable
 fun EffectsTab(store: PresetStore, snackbar: SnackbarHostState) {
     Column(
         modifier = Modifier
@@ -672,6 +303,56 @@ internal val HYBRID_GROUPS = listOf(
     VipJamEffects.SPEAKER
 )
 
+internal data class EffectSection(
+    val title: String,
+    val subtitle: String,
+    val groups: List<String>
+)
+
+internal val EFFECT_SECTIONS = listOf(
+    EffectSection(
+        "Core Frequency & Tone",
+        "EQ, bass, clarity and air",
+        listOf(
+            VipJamEffects.EQ,
+            VipJamEffects.BASS,
+            VipJamEffects.BASS_MONO,
+            VipJamEffects.CLARITY,
+            VipJamEffects.SPECTRUM,
+            VipJamEffects.CURE
+        )
+    ),
+    EffectSection(
+        "Room & Spatial",
+        "Sampled rooms and stereo field",
+        listOf(
+            VipJamEffects.REVERB,
+            VipJamEffects.CONVOLVER,
+            VipJamEffects.FIELD,
+            VipJamEffects.DIFF
+        )
+    ),
+    EffectSection(
+        "Hardware & Transducer",
+        "Device correction and console color",
+        listOf(
+            VipJamEffects.DDC,
+            VipJamEffects.SPEAKER,
+            VipJamEffects.ANALOGX,
+            VipJamEffects.TUBE,
+            VipJamEffects.PLAYBACK_GAIN
+        )
+    ),
+    EffectSection(
+        "Dynamics & Safety",
+        "Peak control and loudness guard",
+        listOf(
+            VipJamEffects.MASTER_LIMITER,
+            VipJamEffects.FET,
+            VipJamEffects.DYN_SYS
+        )
+    )
+)
 internal fun groupInfoLine(group: String): String = when (group) {
     VipJamEffects.MASTER_LIMITER -> "Stops loud peaks from clipping"
     VipJamEffects.PLAYBACK_GAIN -> "Trims overall output loudness"
@@ -843,8 +524,11 @@ fun HybridChainSection(
         )
         return
     }
-    val visible = HYBRID_GROUPS.filter { it.contains(query, ignoreCase = true) || groupTitle(it).contains(query, ignoreCase = true) }
-    if (visible.isEmpty()) {
+    val matchesQuery: (String) -> Boolean = { g ->
+        query.isBlank() || g.contains(query, ignoreCase = true) || groupTitle(g).contains(query, ignoreCase = true)
+    }
+    val visibleAll = HYBRID_GROUPS.filter(matchesQuery)
+    if (visibleAll.isEmpty()) {
         Text(
             "No effects match \"$query\"",
             style = MaterialTheme.typography.bodyMedium,
@@ -852,21 +536,23 @@ fun HybridChainSection(
         )
         return
     }
-    visible.forEachIndexed { index, group ->
+    var staggerIndex = 0
+    EFFECT_SECTIONS.forEach { section ->
+        val visible = section.groups.filter(matchesQuery)
+        if (visible.isEmpty()) return@forEach
+        SectionHeader(title = section.title, subtitle = "${section.subtitle} (${visible.size})")
+        visible.forEach { group ->
+        val index = staggerIndex++
         val on = enables[group] == true
         val isOpen = expanded.contains(group)
         val enableId = groupEnableParam(group)
         val card: @Composable () -> Unit = {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth()
+            RailCard(
+                stateOn = on,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize(chainAnimateSpec())
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .animateContentSize(chainAnimateSpec())
-                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

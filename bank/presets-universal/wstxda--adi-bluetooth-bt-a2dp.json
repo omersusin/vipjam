@@ -236,7 +236,7 @@
     ]
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "Studer +1dB Updated.irs",
     "crossChannel": 0
   },

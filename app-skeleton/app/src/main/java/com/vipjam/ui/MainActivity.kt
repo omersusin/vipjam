@@ -23,8 +23,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -65,11 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import com.vipjam.BuildConfig
-import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetSeeder
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
-import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
 import com.vipjam.log.VipJamLog
@@ -83,7 +79,6 @@ import com.vipjam.ui.components.PowerDot
 import com.vipjam.ui.components.SectionCard
 import com.vipjam.ui.theme.VipJamTheme
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -106,29 +101,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-internal enum class TabPage(val label: String) {
-    Home("Home"),
-    Sound("Sound"),
-    Presets("Presets"),
-    Lab("Lab"),
-    System("System"),
-    Effects("Effects"),
-    TestTone("Test Tone"),
-    LiveProg("LiveProg"),
-    AutoEq("AutoEq"),
-    AppProfiles("Apps"),
-    Status("Status"),
-    Module("Module")
-}
-
-internal val TopDestinations = listOf(
-    TabPage.Home,
-    TabPage.Sound,
-    TabPage.Presets,
-    TabPage.Lab,
-    TabPage.System
-)
 
 internal enum class Detail(val label: String) {
     Presets("Presets"),
@@ -162,7 +134,6 @@ fun VipJamApp() {
     var detail by rememberSaveable { mutableStateOf<Detail?>(null) }
     var systemDetail by rememberSaveable { mutableStateOf<SystemDetail?>(null) }
     var labTool by rememberSaveable { mutableStateOf(LabTool.TestTone) }
-    var menuOpen by remember { mutableStateOf(false) }
     var statusOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     val store = remember { PresetStore(context.prefs) }
@@ -184,7 +155,7 @@ fun VipJamApp() {
         .map { it[VipJamPrefs.ACTIVE_PROFILE] ?: VipJamPrefs.Profiles.HEADSET }
         .collectAsState(initial = VipJamPrefs.Profiles.HEADSET)
 
-    var driverText by remember { mutableStateOf("Probing driver") }
+    var driverText by rememberSaveable { mutableStateOf("Probing driver") }
     var driverOk by remember { mutableStateOf(false) }
     var driverDone by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -234,60 +205,17 @@ fun VipJamApp() {
         }
     }
 
-    fun flattenEq() {
-        scope.launch {
-            val current = try {
-                val prefsData = context.prefs.data.first()
-                val all = store.entries.first()
-                all.find { it.name == prefsData[VipJamPrefs.ACTIVE_PRESET] }
-                    ?: all.firstOrNull()
-            } catch (_: Exception) {
-                null
-            } ?: run {
-                launch { snackbar.showSnackbar("No preset to flatten") }
-                return@launch
-            }
-            val bands = parseEqBands(current.settingsJson) ?: run {
-                launch { snackbar.showSnackbar("EQ is off") }
-                return@launch
-            }
-            var json = current.settingsJson
-            for (i in bands.indices) {
-                json = runCatching {
-                    PresetApplier.withGroupScalar(json, VipJamEffects.EQ, i.toString(), 0.0)
-                }.getOrElse {
-                    launch { snackbar.showSnackbar("Edit failed: ${it.message}") }
-                    return@launch
-                }
-            }
-            store.save(PresetEntry(current.name, json))
-                .onSuccess { launch { snackbar.showSnackbar("EQ flattened") } }
-                .onFailure { launch { snackbar.showSnackbar("Edit failed: ${it.message}") } }
-            for (i in bands.indices) {
-                VipJamService.dispatchParam(context, com.vipjam.dsp.VipJamDispatcher.F_EQ, i, 0, 0)
-            }
-        }
-    }
-
-    fun openLab(tool: LabTool) {
-        menuOpen = false
-        labTool = tool
-        systemDetail = null
-        detail = Detail.Lab
-    }
-
-    fun openSystem(entry: SystemDetail) {
-        menuOpen = false
-        detail = Detail.System
-        systemDetail = entry
-    }
-
     val current = detail
     val sysDetail = systemDetail
-    BackHandler(enabled = current != null && !(current == Detail.System && sysDetail != null)) {
-        systemDetail = null
-        detail = null
+    fun popBack() {
+        if (sysDetail != null) {
+            systemDetail = null
+        } else {
+            systemDetail = null
+            detail = null
+        }
     }
+    BackHandler(enabled = current != null) { popBack() }
 
     if (statusOpen) {
         DriverStatusDialog(onDismiss = { statusOpen = false })
@@ -302,30 +230,24 @@ fun VipJamApp() {
                 } else {
                     current.label
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            systemDetail = null
-                            detail = null
-                        },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Text("Back")
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.semantics { heading() }
+                        )
+                    },
+                    navigationIcon = {
+                        TextButton(
+                            onClick = { popBack() },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("Back")
+                        }
                     }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.semantics { heading() }
-                    )
-                }
+                )
             } else {
                 TopAppBar(
                     title = {
@@ -507,7 +429,6 @@ private fun SystemScreen(
     onDetailChange: (SystemDetail?) -> Unit,
     onOpenLab: () -> Unit
 ) {
-    BackHandler(enabled = detail != null) { onDetailChange(null) }
     if (detail == null) {
         Column(
             modifier = Modifier
@@ -550,7 +471,7 @@ private fun SystemScreen(
                 when (detail) {
                     SystemDetail.Apps -> AppProfilesTab(snackbar)
                     SystemDetail.Module -> ModuleTab(snackbar)
-                    SystemDetail.Status -> StatusTab(store)
+                    SystemDetail.Status -> StatusTab(store, snackbar)
                     SystemDetail.Logs -> LogsDetail()
                     SystemDetail.About -> AboutDetail()
                 }
@@ -564,7 +485,7 @@ private fun LogsDetail() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
-    var filter by remember { mutableStateOf(0) }
+    var filter by rememberSaveable { mutableStateOf(0) }
     var lines by remember { mutableStateOf<List<String>>(emptyList()) }
     var seq by remember { mutableStateOf(0) }
     val listState = rememberLazyListState()

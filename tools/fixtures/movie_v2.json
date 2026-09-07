@@ -14,7 +14,7 @@
   },
   "fetCompressor": {
     "enable": false,
-    "threshold": 100,
+    "threshold": -18,
     "ratio": 100,
     "kneeAuto": true,
     "knee": 0,

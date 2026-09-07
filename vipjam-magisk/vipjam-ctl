@@ -75,6 +75,23 @@ is_int() {
   esac
 }
 
+# Reject absurd magnitudes before any numeric compare (binder/settings
+# payloads must stay small; sh [ -ge ] can also misbehave on huge input).
+# $1=value (signed int string), $2=min, $3=max
+int_in_range() {
+  raw="$1"
+  min="$2"
+  max="$3"
+  is_int "$raw" || return 1
+  mag="${raw#-}"
+  mag="${mag#0}"
+  [ -n "$mag" ] || mag="0"
+  [ "${#mag}" -le 10 ] || return 1
+  [ "$raw" -ge "$min" ] 2>/dev/null || return 1
+  [ "$raw" -le "$max" ] 2>/dev/null || return 1
+  return 0
+}
+
 do_status() {
   echo "== version =="
   print_version
@@ -198,10 +215,22 @@ do_help() {
 }
 
 send_cmd() {
-  settings put global vipjam_cmd "$1" >/dev/null 2>&1 || { echo "send failed"; return 1; }
+  # NOTE: settings get+put is not atomic; two concurrent callers can read
+  # the same seq and send duplicates. Best-effort mkdir lock narrows the
+  # race (NFS-unsafe, crash may leave a stale lock — hence the timeout).
+  lock="/data/local/tmp/vipjam/cmd_seq.lock"
+  mkdir -p "${lock%/*}" 2>/dev/null
+  i=0
+  while ! mkdir "$lock" 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -ge 50 ] && break
+    sleep 0.05 2>/dev/null || sleep 1
+  done
+  settings put global vipjam_cmd "$1" >/dev/null 2>&1 || { rmdir "$lock" 2>/dev/null; echo "send failed"; return 1; }
   seq="$(settings get global vipjam_cmd_seq 2>/dev/null)"
   case "$seq" in ''|null|*[!0-9]*) seq=0 ;; esac
-  settings put global vipjam_cmd_seq "$((seq + 1))" >/dev/null 2>&1 || { echo "send failed"; return 1; }
+  settings put global vipjam_cmd_seq "$((seq + 1))" >/dev/null 2>&1 || { rmdir "$lock" 2>/dev/null; echo "send failed"; return 1; }
+  rmdir "$lock" 2>/dev/null
   echo "sent"
 }
 
@@ -218,12 +247,12 @@ do_param() {
     echo "need id + value"
     exit 2
   fi
-  is_int "$1" || { echo "id must be an integer: $1"; exit 2; }
-  is_int "$2" || { echo "v0 must be an integer: $2"; exit 2; }
+  int_in_range "$1" 0 2147483647 || { echo "id must be an integer 0..2147483647: $1"; exit 2; }
+  int_in_range "$2" -2147483648 2147483647 || { echo "v0 must be an integer in int32 range: $2"; exit 2; }
   v1="${3:-0}"
   v2="${4:-0}"
-  is_int "$v1" || { echo "v1 must be an integer: $3"; exit 2; }
-  is_int "$v2" || { echo "v2 must be an integer: $4"; exit 2; }
+  int_in_range "$v1" -2147483648 2147483647 || { echo "v1 must be an integer in int32 range: $3"; exit 2; }
+  int_in_range "$v2" -2147483648 2147483647 || { echo "v2 must be an integer in int32 range: $4"; exit 2; }
   send_cmd "{\"cmd\":\"param\",\"id\":$1,\"v0\":$2,\"v1\":$v1,\"v2\":$v2}"
 }
 
@@ -232,7 +261,9 @@ do_preset() {
   size="$(wc -c < "$1" 2>/dev/null | tr -d ' ')"
   case "$size" in ''|*[!0-9]*) echo "cannot stat: $1"; exit 2 ;; esac
   [ "$size" -gt 0 ] || { echo "empty preset: $1"; exit 2; }
-  [ "$size" -gt 1048576 ] && { echo "preset too large (>1MB), binder limit"; exit 2; }
+  # Binder-safe: settings provider payloads must stay well under the ~1MB
+  # transaction limit (base64 inflates ~33% + JSON envelope). Cap raw at 200KB.
+  [ "$size" -gt 204800 ] && { echo "preset too large (>200KB raw, binder-safe cap; stage via file instead): $1"; exit 2; }
   if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,dict) and d.get("schemaVersion")==3, "need schemaVersion 3 object"' "$1" 2>/dev/null; then
     if ! grep -q '"schemaVersion"[[:space:]]*:[[:space:]]*3' "$1" 2>/dev/null; then
       echo "not a v3 preset object (need schemaVersion 3): $1"; exit 2

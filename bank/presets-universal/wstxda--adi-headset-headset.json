@@ -171,7 +171,7 @@
     ]
   },
   "ddc": {
-    "enable": true,
+    "enable": false,
     "device": "JBL J22.vdc"
   },
   "spectrumExtension": {
@@ -236,7 +236,7 @@
     ]
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "Studer +1dB Updated.irs",
     "crossChannel": 0
   },

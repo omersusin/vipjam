@@ -92,6 +92,16 @@
     const el = document.getElementById(id);
     if (el) el.textContent = msg;
   }
+  function el(id) {
+    return document.getElementById(id);
+  }
+  function on(id, ev, fn) {
+    const n = document.getElementById(id);
+    if (n) n[ev] = fn;
+    return n;
+  }
+  const MAX_KERNEL_BYTES = 200 * 1024;
+  const MAX_KERNEL_B64 = Math.ceil(MAX_KERNEL_BYTES * 4 / 3);
   function q(s) {
     return "'" + String(s).replace(/'/g, "'\\''") + "'";
   }
@@ -121,7 +131,8 @@
       const el = document.getElementById(id);
       if (el) el.disabled = !on;
     }
-    document.getElementById("nobeCtl").hidden = on;
+    const nobe = document.getElementById("nobeCtl");
+    if (nobe) nobe.hidden = on;
   }
   function isExecErr(s) {
     return !s || s.indexOf("exec failed:") === 0;
@@ -130,7 +141,8 @@
     if (!window.ksu || !ksu.exec) {
       hasCtl = false;
       setEnabled(false);
-      document.getElementById("status").textContent = "no ksu bridge — open in KernelSU WebUI";
+      const st = document.getElementById("status");
+      if (st) st.textContent = "no ksu bridge — open in KernelSU WebUI";
       return;
     }
     try {
@@ -148,41 +160,47 @@
       if (i > 0) kv[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     });
     if (kv.MASTER === "1" || kv.MASTER === "0") {
-      document.getElementById("masterBtn").textContent = kv.MASTER === "1" ? "Master: ON" : "Master: OFF";
+      const b = document.getElementById("masterBtn");
+      if (b) b.textContent = kv.MASTER === "1" ? "Master: ON" : "Master: OFF";
     }
     if (kv.PROFILE === "headset" || kv.PROFILE === "speaker" || kv.PROFILE === "bluetooth") {
-      document.getElementById("profile").value = kv.PROFILE;
+      const p = document.getElementById("profile");
+      if (p) p.value = kv.PROFILE;
     }
   }
   async function refresh() {
+    const st = document.getElementById("status");
     if (!hasCtl) {
-      document.getElementById("status").textContent = "(vipjam-ctl not found)";
+      if (st) st.textContent = "(vipjam-ctl not found)";
       return;
     }
     const out = await sh("vipjam-ctl status-json 2>&1");
-    document.getElementById("status").textContent = out || "(empty)";
+    if (st) st.textContent = out || "(empty)";
     if (!isExecErr(out)) syncFromDiag(out);
     try { await listPresets(); } catch (e) {}
     try { await listKernels(); } catch (e) {}
   }
   async function diag() {
+    const st = document.getElementById("status");
     if (!hasCtl) {
-      document.getElementById("status").textContent = "(vipjam-ctl not found)";
+      if (st) st.textContent = "(vipjam-ctl not found)";
       return;
     }
     const out = await sh("vipjam-ctl diag 2>&1");
-    document.getElementById("status").textContent = out || "(empty)";
+    if (st) st.textContent = out || "(empty)";
   }
   async function listPresets() {
     const out = await sh("vipjam-ctl list 2>/dev/null");
     const box = document.getElementById("presetList");
+    if (!box) return;
     box.innerHTML = "";
     if (isExecErr(out)) { box.textContent = "(list failed)"; return; }
     const paths = out.split("\n").map(s => s.trim()).filter(Boolean)
-      .filter(p => p.indexOf(PRESET_DIR) === 0 && p.indexOf("\n") === -1);
+      .filter(p => p.indexOf("\n") === -1 && /\.json$/i.test(p));
     if (!paths.length) { box.textContent = "(no presets)"; return; }
     for (const path of paths) {
       const name = path.split("/").pop();
+      const bundled = path.indexOf(PRESET_DIR) !== 0;
       const div = document.createElement("div");
       div.className = "preset";
       const label = document.createElement("span");
@@ -199,7 +217,8 @@
       const del = document.createElement("button");
       del.className = "ghost";
       del.textContent = "Delete";
-      del.disabled = !hasCtl;
+      del.disabled = !hasCtl || bundled;
+      del.title = bundled ? "bundled preset (read-only)" : "";
       del.onclick = async () => {
         if (!hasCtl) return;
         await sh("rm -f " + q(path));
@@ -214,6 +233,7 @@
   async function listKernels() {
     const out = await sh("ls -1 " + q(KERNEL_DIR) + " 2>/dev/null");
     const box = document.getElementById("kernelList");
+    if (!box) return;
     box.innerHTML = "";
     if (isExecErr(out)) { box.textContent = "(list failed)"; return; }
     const names = out.split("\n").map(s => s.trim()).filter(Boolean)
@@ -248,31 +268,35 @@
       const saved = localStorage.getItem("vipjam." + id);
       if (saved !== null) {
         const c = clampSlider(saved);
-        document.getElementById(id).value = c;
-        document.getElementById(val).textContent = c;
+        const s = document.getElementById(id);
+        const l = document.getElementById(val);
+        if (s) s.value = c;
+        if (l) l.textContent = c;
       }
     }
   }
-  document.getElementById("refreshBtn").onclick = refresh;
-  document.getElementById("diagBtn").onclick = diag;
-  document.getElementById("logsBtn").onclick = async () => {
+  on("refreshBtn", "onclick", refresh);
+  on("diagBtn", "onclick", diag);
+  on("logsBtn", "onclick", async () => {
     const out = await sh("logcat -d -t 120 -s VipJamService:V PresetApplier:V VipJam:V 2>&1");
-    document.getElementById("logs").textContent = out || "(empty)";
-  };
-  document.getElementById("resetPresetsBtn").onclick = async () => {
+    const l = document.getElementById("logs");
+    if (l) l.textContent = out || "(empty)";
+  });
+  on("resetPresetsBtn", "onclick", async () => {
     if (!confirm("Delete all downloaded presets in " + PRESET_DIR + "?")) return;
     await sh("rm -rf " + q(PRESET_DIR) + " && mkdir -p " + q(PRESET_DIR));
     listPresets();
-  };
-  document.getElementById("resetPropsBtn").onclick = async () => {
+  });
+  on("resetPropsBtn", "onclick", async () => {
     await sh("for p in persist.vipjam.master persist.vipjam.enabled persist.vipjam.profile; do resetprop -d \"$p\" 2>/dev/null || resetprop --delete \"$p\" 2>/dev/null || setprop \"$p\" \"\" 2>/dev/null; done; settings delete global vipjam_cmd 2>/dev/null; settings delete global vipjam_cmd_seq 2>/dev/null; echo done");
-  };
-  document.getElementById("kernelBtn").onclick = async () => {
+  });
+  on("kernelBtn", "onclick", async () => {
     const input = document.getElementById("kernelFile");
+    if (!input) return;
     if (!input.files || !input.files[0]) { toast("kernelToast", "no file selected"); return; }
     const f = input.files[0];
     if (!/\.(vdc|wav|irs)$/i.test(f.name)) { toast("kernelToast", "only .vdc/.wav/.irs allowed"); return; }
-    if (f.size > 4 * 1024 * 1024) { toast("kernelToast", "file too large (max 4MB for WebUI staging)"); return; }
+    if (f.size > MAX_KERNEL_BYTES) { toast("kernelToast", "file too large (max 200KB for WebUI shell staging — use the app instead)"); return; }
     const safe = f.name.replace(/[^A-Za-z0-9._-]/g, "_");
     if (safe.indexOf("..") !== -1) { toast("kernelToast", "invalid filename"); return; }
     toast("kernelToast", "staging " + safe + "…");
@@ -283,7 +307,7 @@
       bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
     }
     const b64 = btoa(bin);
-    if (b64.length > 1400000) { toast("kernelToast", "encoded file too large for shell staging — use the app instead"); return; }
+    if (b64.length > MAX_KERNEL_B64) { toast("kernelToast", "file too large (max 200KB for WebUI shell staging — use the app instead)"); return; }
     const rc = await sh("mkdir -p " + q(KERNEL_DIR) + " && printf '%s' " + q(b64) + " | base64 -d > " + q(KERNEL_DIR + "/" + safe) + " && ls -l " + q(KERNEL_DIR + "/" + safe));
     input.value = "";
     if (isExecErr(rc) || rc.indexOf(safe) === -1) {
@@ -292,25 +316,30 @@
       toast("kernelToast", "staged " + safe);
     }
     listKernels();
-  };
-  document.getElementById("masterBtn").onclick = async () => {
+  });
+  on("masterBtn", "onclick", async () => {
     await sh("vipjam-ctl toggle");
     refresh();
-  };
-  document.getElementById("profile").onchange = async (e) => {
+  });
+  on("profile", "onchange", async (e) => {
     await sh("vipjam-ctl profile " + q(e.target.value));
     refresh();
-  };
+  });
   for (const [id, paramId, val, mode] of [[ "bass", P_BASS_GAIN, "bassVal", 0 ], [ "clarity", F_CLARITY, "clarVal", 0 ]]) {
-    document.getElementById(id).oninput = (e) => {
+    const s = document.getElementById(id);
+    if (!s) continue;
+    s.oninput = (e) => {
       const v = clampSlider(e.target.value);
-      document.getElementById(val).textContent = v;
+      const l = document.getElementById(val);
+      if (l) l.textContent = v;
       localStorage.setItem("vipjam." + id, String(v));
       debounced(id, () => sh("vipjam-ctl param " + paramId + " " + v + " " + mode));
     };
   }
-  document.getElementById("presetBtn").onclick = async () => {
-    const link = document.getElementById("presetLink").value.trim();
+  on("presetBtn", "onclick", async () => {
+    const linkEl = document.getElementById("presetLink");
+    if (!linkEl) return;
+    const link = linkEl.value.trim();
     let text = null;
     if (link.startsWith("vipjam://preset?c=")) {
       text = decodeLink(link);
@@ -328,14 +357,14 @@
     const name = "link-" + Date.now() + ".v3.json";
     if (text.length > 700000) { toast("presetToast", "preset too large for shell save (>~700KB)"); return; }
     const rc = await sh("mkdir -p " + q(PRESET_DIR) + " && printf '%s' " + q(text) + " > " + q(PRESET_DIR + "/" + name) + " && echo saved");
-    document.getElementById("presetLink").value = "";
+    if (linkEl) linkEl.value = "";
     if (isExecErr(rc)) {
       toast("presetToast", "save failed");
     } else {
       toast("presetToast", "saved " + name);
     }
     listPresets();
-  };
+  });
   setEnabled(false);
   restoreSliders();
   probe().catch(() => {}).then(refresh);

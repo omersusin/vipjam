@@ -317,7 +317,10 @@ class VipJamService : Service() {
                     }
                     applyPreset(json, master)
                     try {
-                        app.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = route }
+                        app.prefs.edit {
+                            it[VipJamPrefs.ACTIVE_PRESET] = presetName
+                            it[VipJamPrefs.ACTIVE_PROFILE] = route
+                        }
                     } catch (_: Exception) {
                     }
                     return@launch
@@ -422,6 +425,13 @@ class VipJamService : Service() {
                 }
                 ACTION_TOGGLE_MASTER -> {
                     val on = intent.getBooleanExtra(EXTRA_MASTER_ENABLED, true)
+                    scope.launch {
+                        try {
+                            applicationContext.prefs.edit { it[VipJamPrefs.MASTER_ENABLE] = on }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "toggle: persist master failed", e)
+                        }
+                    }
                     applyMaster(on)
                 }
                 ACTION_SET_PROFILE -> {
@@ -433,6 +443,13 @@ class VipJamService : Service() {
                     if (profile !in VipJamPrefs.Profiles.ALL) {
                         Log.w(TAG, "set profile with unknown route skipped: $profile")
                     } else {
+                        scope.launch {
+                            try {
+                                applicationContext.prefs.edit { it[VipJamPrefs.ACTIVE_PROFILE] = profile }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "set profile: persist failed", e)
+                            }
+                        }
                         applyProfile(profile)
                     }
                 }
@@ -446,6 +463,16 @@ class VipJamService : Service() {
                     if (json.isBlank()) {
                         Log.w(TAG, "apply preset with empty json skipped")
                     } else {
+                        val presetName = runCatching { JSONObject(json).optString("name", "") }.getOrNull().orEmpty()
+                        if (presetName.isNotBlank()) {
+                            scope.launch {
+                                try {
+                                    applicationContext.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = presetName }
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "apply preset: persist active failed", e)
+                                }
+                            }
+                        }
                         scope.launch {
                             try {
                                 applyPreset(json, master)
@@ -722,24 +749,39 @@ class VipJamService : Service() {
                     dispatcher.enabled = masterOn
                 } catch (_: Exception) {
                 }
-                try {
+                val fileOk = try {
                     applyFileBackedGroups(settingsJson)
                 } catch (e: Exception) {
                     Log.w(TAG, "applyPreset file-backed groups failed", e)
+                    false
                 }
-                applied
+                if (!fileOk) {
+                    Log.w(TAG, "applyPreset: kernel/DDC push failed, preset partially applied")
+                    VipJamLog.w(TAG, "preset partially applied (file-backed push failed)")
+                }
+                applied and fileOk
             }
             if (!ok) Log.w(TAG, "applyPreset: one or more params rejected by driver")
             if (!ok) VipJamLog.w(TAG, "preset rejected") else VipJamLog.i(TAG, "preset applied master=$masterOn")
+            val presetName = runCatching { JSONObject(settingsJson).optString("name", "") }.getOrNull().orEmpty()
+            if (presetName.isNotBlank()) {
+                scope.launch {
+                    try {
+                        applicationContext.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = presetName }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "applyPreset: persist active failed", e)
+                    }
+                }
+            }
         } catch (_: Exception) {
         }
     }
 
-    private fun applyFileBackedGroups(settingsJson: String) {
-        val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return
+    private fun applyFileBackedGroups(settingsJson: String): Boolean {
+        val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return false
         val kernels = KernelStore(this)
         val staged = runCatching { kernels.list() }.getOrDefault(emptyList())
-        if (staged.isEmpty()) return
+        if (staged.isEmpty()) return true
         fun findRef(ref: String): StagedKernel? {
             if (ref.isBlank()) return null
             val base = ref.substringAfterLast('/').substringAfterLast('\\')
@@ -752,53 +794,56 @@ class VipJamService : Service() {
             getSystemService(AudioManager::class.java)
                 ?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
         }.getOrNull() ?: 48000
-        fun pushConvolver(ref: String) {
+        fun pushConvolver(ref: String): Boolean {
             val item = findRef(ref) ?: run {
                 Log.w(TAG, "applyPreset: kernel not staged, skipping convolver: $ref")
-                return
+                return false
             }
             val pcm = runCatching { kernels.readKernelPcm(item.fileName).getOrThrow() }.getOrNull() ?: run {
                 Log.w(TAG, "applyPreset: unreadable kernel: $ref")
-                return
+                return false
             }
             val plan = runCatching {
                 convPush(pcm.samples, pcm.channels, pcm.sampleRate, deviceRate).getOrThrow()
             }.getOrNull() ?: run {
                 Log.w(TAG, "applyPreset: kernel plan failed: $ref")
-                return
+                return false
             }
             if (plan.rateMismatch) {
                 Log.w(TAG, "applyPreset: kernel rate ${plan.sampleRate} vs device $deviceRate, not resampled")
             }
             for (s in plan.steps) dispatchBulkNow(s.id, s.values, s.v0, s.v1, s.v2)
+            return true
         }
-        fun pushDdc(ref: String) {
+        fun pushDdc(ref: String): Boolean {
             val item = findRef(ref) ?: run {
                 Log.w(TAG, "applyPreset: DDC not staged, skipping: $ref")
-                return
+                return false
             }
             val text = runCatching { kernels.readVdcText(item.fileName).getOrThrow() }.getOrNull() ?: run {
                 Log.w(TAG, "applyPreset: unreadable DDC: $ref")
-                return
+                return false
             }
             val step = runCatching { ddcStep(text).getOrThrow() }.getOrNull() ?: run {
                 Log.w(TAG, "applyPreset: DDC plan failed: $ref")
-                return
+                return false
             }
             dispatchBulkNow(step.id, step.values, step.v0, step.v1, step.v2)
+            return true
         }
+        var fileOk = true
         runCatching { obj.optJSONObject("convolver") }.getOrNull()?.let { g ->
-            if (g.optBoolean("enable")) pushConvolver(g.optString("kernelFile"))
+            if (g.optBoolean("enable")) fileOk = pushConvolver(g.optString("kernelFile")) and fileOk
         }
         runCatching { obj.optJSONObject("ddc") }.getOrNull()?.let { g ->
-            if (g.optBoolean("enable")) pushDdc(g.optString("device"))
+            if (g.optBoolean("enable")) fileOk = pushDdc(g.optString("device")) and fileOk
         }
         runCatching { obj.optJSONObject("james") }.getOrNull()?.let { j ->
             runCatching { j.optJSONObject("convolver") }.getOrNull()?.let { g ->
-                if (g.optBoolean("enable")) pushConvolver(g.optString("kernelFile"))
+                if (g.optBoolean("enable")) fileOk = pushConvolver(g.optString("kernelFile")) and fileOk
             }
             runCatching { j.optJSONObject("ddc") }.getOrNull()?.let { g ->
-                if (g.optBoolean("enable")) pushDdc(g.optString("device"))
+                if (g.optBoolean("enable")) fileOk = pushDdc(g.optString("device")) and fileOk
             }
             runCatching { j.optJSONObject("liveprog") }.getOrNull()?.let { g ->
                 if (g.optBoolean("enable")) {
@@ -806,6 +851,7 @@ class VipJamService : Service() {
                 }
             }
         }
+        return fileOk
     }
 
     private fun ensureChannel() {

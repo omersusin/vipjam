@@ -17,6 +17,11 @@ next to the preset per the roadmap layout (Kernel/, DDC/, LiveProg/).
 No unit conversions are faked: each side keeps its native scales; the app and
 the fused 0x200xx chain apply them per-engine.
 
+Field shapes, required keys and ranges are defined in
+``presets/preset.schema.json``; validation here mirrors that file. Sparse
+presets (any subset of groups) validate; ``--dense`` fills missing groups
+with neutral defaults (the canonical bank form).
+
 Examples::
 
     convert_v2_to_v3.py viper_v2.json -o preset.v3.json
@@ -35,7 +40,23 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-VIPER_GROUPS = {
+SCHEMA_PATH = Path(__file__).resolve().parent.parent / "presets" / "preset.schema.json"
+
+
+def _load_schema() -> dict[str, Any]:
+    try:
+        return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+SCHEMA = _load_schema()
+
+VIPER_GROUPS = set(SCHEMA.get("properties", {}).keys()) - {
+    "schemaVersion", "origin", "name", "masterEnable", "route",
+    "source", "sourceName", "createdAt", "sourceText", "sourcePreampDb",
+    "sourceFilters", "sourceGraphicPoints", "james",
+} if SCHEMA else {
     "masterLimiter", "playbackGainControl", "lufs", "fetCompressor",
     "multibandCompressor", "ddc", "spectrumExtension", "equalizer",
     "dynamicEq", "convolver", "fieldSurround", "diffSurround",
@@ -44,6 +65,12 @@ VIPER_GROUPS = {
     "tubeSimulator", "analogX", "speakerCorrection", "loudnessComp",
     "liveprog",
 }
+
+CANONICAL_LOUDNESS = "loudnessComp"
+
+PASSTHROUGH_STR_KEYS = ("source", "sourceName", "createdAt")
+FIDELITY_KEYS = ("sourceText", "sourcePreampDb", "sourceFilters",
+                 "sourceGraphicPoints")
 
 JAMES_STAGES = {
     "masterswitch", "compression", "bass", "tone", "streq", "convolver",
@@ -228,22 +255,55 @@ def detect_route(path: Path) -> str | None:
     return None
 
 
-def v2_to_v3(v2: dict[str, Any], *, name: str | None = None) -> dict[str, Any]:
+def _neutral_group(group: str) -> dict[str, Any]:
+    if group == "masterLimiter":
+        return {"threshold": 100, "outputVolume": 100, "channelPan": 0}
+    return {"enable": False}
+
+
+def densify(v3: dict[str, Any]) -> dict[str, Any]:
+    """Fill missing viper groups with neutral defaults (bank canonical form)."""
+    for group in sorted(VIPER_GROUPS):
+        if group not in v3:
+            v3[group] = _neutral_group(group)
+    return v3
+
+
+def v2_to_v3(v2: dict[str, Any], *, name: str | None = None,
+             source: str | None = None, source_name: str | None = None,
+             dense: bool = False) -> dict[str, Any]:
     if v2.get("schemaVersion") == 3:
-        return v2
+        out = v2
+        if source is not None:
+            out["source"] = source
+        if source_name is not None:
+            out["sourceName"] = source_name
+        return densify(out) if dense else out
     out: dict[str, Any] = {
         "schemaVersion": 3,
         "origin": "viper",
         "name": name or v2.get("name") or "imported",
         "masterEnable": True,
     }
+    if source is not None:
+        out["source"] = source
+    elif v2.get("source"):
+        out["source"] = v2["source"]
+    if source_name is not None:
+        out["sourceName"] = source_name
+    elif v2.get("sourceName"):
+        out["sourceName"] = v2["sourceName"]
+    for passthrough in ("route", "createdAt"):
+        if v2.get(passthrough) is not None:
+            out[passthrough] = v2[passthrough]
     for key, val in v2.items():
-        if key in ("schemaVersion", "name"):
+        if key in ("schemaVersion", "name", "source", "sourceName",
+                   "route", "createdAt"):
             continue
         if key not in VIPER_GROUPS:
             raise ValueError(f"unknown v2 group: {key}")
         out[key] = val
-    return out
+    return densify(out) if dense else out
 
 
 def validate_v3(p: dict[str, Any]) -> list[str]:
@@ -257,13 +317,19 @@ def validate_v3(p: dict[str, Any]) -> list[str]:
     for key in p:
         if key in ("schemaVersion", "origin", "name", "masterEnable", "route"):
             continue
+        if key in PASSTHROUGH_STR_KEYS + FIDELITY_KEYS:
+            continue
+        if isinstance(key, str) and key.isdigit():
+            continue
+        if isinstance(key, str) and key.startswith("dsp."):
+            continue
         if key == "james":
             j = p["james"]
             if not isinstance(j, dict):
                 errs.append("james must be an object")
             else:
                 for stage in j:
-                    if stage not in JAMES_STAGES:
+                    if stage not in JAMES_STAGES and not stage.startswith("dsp."):
                         errs.append(f"unknown james stage: {stage}")
             continue
         if key not in VIPER_GROUPS:
@@ -274,14 +340,17 @@ def validate_v3(p: dict[str, Any]) -> list[str]:
             errs.append("equalizer bandCount != len(bands)")
     ddc = p.get("ddc")
     if isinstance(ddc, dict) and ddc.get("enable"):
-        for sr in ("sr44100", "sr48000"):
-            coeffs = ddc.get(sr)
-            if not isinstance(coeffs, list) or not coeffs:
-                errs.append(f"ddc enabled but {sr} missing/empty (need SR_44100/SR_48000 coeffs)")
-            elif len(coeffs) % 5 != 0:
-                errs.append(f"ddc {sr} length % 5 != 0")
-            elif not all(isinstance(c, (int, float)) and c == c and abs(c) != float("inf") for c in coeffs):
-                errs.append(f"ddc {sr} has non-finite coeffs")
+        if isinstance(ddc.get("device"), str) and ddc["device"]:
+            pass
+        else:
+            for sr in ("sr44100", "sr48000"):
+                coeffs = ddc.get(sr)
+                if not isinstance(coeffs, list) or not coeffs:
+                    errs.append(f"ddc enabled but {sr} missing/empty (need SR_44100/SR_48000 coeffs or a device .vdc ref)")
+                elif len(coeffs) % 5 != 0:
+                    errs.append(f"ddc {sr} length % 5 != 0")
+                elif not all(isinstance(c, (int, float)) and c == c and abs(c) != float("inf") for c in coeffs):
+                    errs.append(f"ddc {sr} has non-finite coeffs")
     fs = p.get("fieldSurround")
     if isinstance(fs, dict):
         w = fs.get("widening")
@@ -395,6 +464,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--route", default=None,
                    help="james route (default: detected from filename)")
     p.add_argument("--name", default=None)
+    p.add_argument("--source", default=None)
+    p.add_argument("--source-name", default=None)
+    p.add_argument("--dense", action="store_true",
+                   help="fill missing groups with neutral defaults (bank form)")
     p.add_argument("--pack-link", action="store_true",
                    help="output vipjam://preset link instead of JSON")
     p.add_argument("--unpack-link", action="store_true",
@@ -427,15 +500,21 @@ def main(argv: list[str] | None = None) -> int:
                 "masterEnable": _to_bool(
                     prefs.get("dsp.masterswitch.enable", False)
                 ),
-                "james": james_to_v3(prefs, route=route),
             }
+            if args.source is not None:
+                out["source"] = args.source
+            if args.source_name is not None:
+                out["sourceName"] = args.source_name
             if route:
                 out["route"] = route
+            if args.dense:
+                densify(out)
         else:
             v2 = json.loads(text)
             if not isinstance(v2, dict):
                 raise ValueError("v2 json must be an object")
-            out = v2_to_v3(v2, name=args.name)
+            out = v2_to_v3(v2, name=args.name, source=args.source,
+                           source_name=args.source_name, dense=args.dense)
             if args.merge:
                 jprefs = parse_james_prefs(
                     args.merge.read_text(encoding="utf-8")

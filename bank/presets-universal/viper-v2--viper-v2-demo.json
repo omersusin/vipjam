@@ -101,7 +101,7 @@
     "filterTypes": "0;0;0"
   },
   "convolver": {
-    "enable": true,
+    "enable": false,
     "kernelFile": "demo.irs",
     "crossChannel": 0
   },

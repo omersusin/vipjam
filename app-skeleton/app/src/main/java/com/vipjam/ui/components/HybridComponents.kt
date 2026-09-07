@@ -99,7 +99,7 @@ fun HybridSliderRow(
             Text(
                 text = valueText(draft.coerceIn(valueRange.start, valueRange.endInclusive)),
                 style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .clickable(enabled = enabled, role = Role.Button) { dialogOpen = true }

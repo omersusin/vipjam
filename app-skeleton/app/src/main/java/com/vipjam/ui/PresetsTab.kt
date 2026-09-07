@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +23,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
@@ -34,6 +41,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,14 +50,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.vipjam.data.PresetEntry
 import com.vipjam.data.PresetImporter
 import com.vipjam.appprofile.AppProfileStore
 import com.vipjam.data.PresetStore
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.service.VipJamService
+import org.json.JSONObject
 import com.vipjam.ui.components.PressableCard
 import com.vipjam.ui.components.SectionHeader
 import com.vipjam.ui.components.rememberReducedMotion
@@ -57,6 +70,34 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val PARKED_KEY = stringPreferencesKey("app_profile_parked_map")
+
+private fun decodeParked(raw: String): Map<String, String> {
+    if (raw.isBlank()) return emptyMap()
+    val obj = try {
+        JSONObject(raw)
+    } catch (_: Exception) {
+        return emptyMap()
+    }
+    val out = LinkedHashMap<String, String>()
+    for (key in obj.keys()) out[key] = obj.optString(key, "")
+    return out.filterValues { it.isNotBlank() }
+}
+
+private fun encodeParked(map: Map<String, String>): String {
+    val obj = JSONObject()
+    for ((key, value) in map) obj.put(key, value)
+    return obj.toString()
+}
+
+private val PresetEntrySaver = Saver<PresetEntry?, List<String>>(
+    save = { if (it == null) emptyList() else listOf(it.name, it.settingsJson) },
+    restore = {
+        if (it.size < 2) null
+        else PresetEntry(it[0], it[1])
+    },
+)
 
 @Composable
 fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
@@ -67,18 +108,18 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
     val entries by store.entries.collectAsState(initial = null)
     val prefsData by context.prefs.data.collectAsState(initial = null)
     val activeName = prefsData?.get(VipJamPrefs.ACTIVE_PRESET)
-    var query by remember { mutableStateOf("") }
-    var link by remember { mutableStateOf("") }
-    var linkError by remember { mutableStateOf<String?>(null) }
-    var paste by remember { mutableStateOf("") }
-    var pasteError by remember { mutableStateOf<String?>(null) }
-    var renameTarget by remember { mutableStateOf<PresetEntry?>(null) }
-    var renameText by remember { mutableStateOf("") }
-    var renameError by remember { mutableStateOf<String?>(null) }
-    var deleteTarget by remember { mutableStateOf<PresetEntry?>(null) }
-    var overwriteName by remember { mutableStateOf<String?>(null) }
-    var overwriteText by remember { mutableStateOf<String?>(null) }
-    var overwriteIsPaste by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var link by rememberSaveable { mutableStateOf("") }
+    var linkError by rememberSaveable { mutableStateOf<String?>(null) }
+    var paste by rememberSaveable { mutableStateOf("") }
+    var pasteError by rememberSaveable { mutableStateOf<String?>(null) }
+    var renameTarget by rememberSaveable(stateSaver = PresetEntrySaver) { mutableStateOf<PresetEntry?>(null) }
+    var renameText by rememberSaveable { mutableStateOf("") }
+    var renameError by rememberSaveable { mutableStateOf<String?>(null) }
+    var deleteTarget by rememberSaveable(stateSaver = PresetEntrySaver) { mutableStateOf<PresetEntry?>(null) }
+    var overwriteName by rememberSaveable { mutableStateOf<String?>(null) }
+    var overwriteText by rememberSaveable { mutableStateOf<String?>(null) }
+    var overwriteIsPaste by rememberSaveable { mutableStateOf(false) }
 
     fun message(text: String) {
         scope.launch { snackbar.showSnackbar(text) }
@@ -361,6 +402,26 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                                 return@launch
                             }
                             appStore.repointPreset(target.name, next)
+                            try {
+                                context.prefs.edit { prefs ->
+                                    val parked = decodeParked(prefs[PARKED_KEY].orEmpty())
+                                    if (parked.values.any { it == target.name }) {
+                                        prefs[PARKED_KEY] = encodeParked(
+                                            parked.mapValues { (_, v) -> if (v == target.name) next else v },
+                                        )
+                                    }
+                                }
+                            } catch (_: Exception) {
+                            }
+                            // routePresetMap + devicePresetMap are repointed inside PresetStore.rename;
+                            // re-assert here in case a link was added concurrently.
+                            try {
+                                val routes = store.routePresetMap.first().filterValues { it == target.name }
+                                for ((route, _) in routes) store.setRoutePreset(route, next)
+                                val devices = store.devicePresetMap.first().filterValues { it == target.name }
+                                for ((deviceId, _) in devices) store.setDevicePreset(deviceId, next)
+                            } catch (_: Exception) {
+                            }
                             if (activeName == target.name) {
                                 context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = next }
                             }
@@ -386,10 +447,50 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                     onClick = {
                         deleteTarget = null
                         scope.launch {
+                            val routesPointing = try {
+                                store.routePresetMap.first().filterValues { it == target.name }
+                            } catch (_: Exception) {
+                                emptyMap()
+                            }
+                            val devicesPointing = try {
+                                store.devicePresetMap.first().filterValues { it == target.name }
+                            } catch (_: Exception) {
+                                emptyMap()
+                            }
+                            val appsPointing = try {
+                                appStore.appPresetMap.first().filterValues { it == target.name }.keys.toList()
+                            } catch (_: Exception) {
+                                emptyList()
+                            }
+                            val parkedPointing = try {
+                                decodeParked(context.prefs.data.first()[PARKED_KEY].orEmpty())
+                                    .filterValues { it == target.name }
+                            } catch (_: Exception) {
+                                emptyMap()
+                            }
+                            val wasActive = try {
+                                context.prefs.data.first()[VipJamPrefs.ACTIVE_PRESET] == target.name
+                            } catch (_: Exception) {
+                                activeName == target.name
+                            }
                             store.delete(target.name)
                             appStore.purgePreset(target.name)
-                            if (activeName == target.name) {
-                                context.prefs.edit { it.remove(VipJamPrefs.ACTIVE_PRESET) }
+                            if (parkedPointing.isNotEmpty()) {
+                                try {
+                                    context.prefs.edit { prefs ->
+                                        prefs[PARKED_KEY] = encodeParked(
+                                            decodeParked(prefs[PARKED_KEY].orEmpty())
+                                                .filterValues { it != target.name },
+                                        )
+                                    }
+                                } catch (_: Exception) {
+                                }
+                            }
+                            if (wasActive) {
+                                try {
+                                    context.prefs.edit { it.remove(VipJamPrefs.ACTIVE_PRESET) }
+                                } catch (_: Exception) {
+                                }
                             }
                             val result = snackbar.showSnackbar(
                                 message = "Deleted ${target.name}",
@@ -397,7 +498,34 @@ fun PresetsTab(store: PresetStore, snackbar: SnackbarHostState) {
                             )
                             if (result == SnackbarResult.ActionPerformed) {
                                 store.save(target)
-                                    .onSuccess { message("Restored ${target.name}") }
+                                    .onSuccess {
+                                        for ((route, _) in routesPointing) {
+                                            try { store.setRoutePreset(route, target.name) } catch (_: Exception) {}
+                                        }
+                                        for ((deviceId, _) in devicesPointing) {
+                                            try { store.setDevicePreset(deviceId, target.name) } catch (_: Exception) {}
+                                        }
+                                        for (pkg in appsPointing) {
+                                            try { appStore.setAppPreset(pkg, target.name) } catch (_: Exception) {}
+                                        }
+                                        if (parkedPointing.isNotEmpty()) {
+                                            try {
+                                                context.prefs.edit { prefs ->
+                                                    prefs[PARKED_KEY] = encodeParked(
+                                                        decodeParked(prefs[PARKED_KEY].orEmpty()) + parkedPointing,
+                                                    )
+                                                }
+                                            } catch (_: Exception) {
+                                            }
+                                        }
+                                        if (wasActive) {
+                                            try {
+                                                context.prefs.edit { it[VipJamPrefs.ACTIVE_PRESET] = target.name }
+                                            } catch (_: Exception) {
+                                            }
+                                        }
+                                        message("Restored ${target.name}")
+                                    }
                                     .onFailure { message("Could not restore: ${it.message}") }
                             }
                         }
@@ -420,6 +548,7 @@ fun PresetRow(
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     PressableCard(
         onClick = onApply,
         modifier = Modifier.fillMaxWidth(),
@@ -429,28 +558,45 @@ fun PresetRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(entry.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                entry.name,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() }
+            )
             if (isActive) {
                 Text("Active", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Button(
                 onClick = onApply,
                 modifier = Modifier.heightIn(min = 48.dp)
             ) { Text("Apply") }
-            OutlinedButton(
-                onClick = onRename,
-                modifier = Modifier.heightIn(min = 48.dp)
-            ) { Text("Rename") }
-            OutlinedButton(
-                onClick = onShare,
-                modifier = Modifier.heightIn(min = 48.dp)
-            ) { Text("Share") }
-            OutlinedButton(
-                onClick = onDelete,
-                modifier = Modifier.heightIn(min = 48.dp)
-            ) { Text("Delete") }
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "Preset actions")
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Rename") },
+                        onClick = { menuExpanded = false; onRename() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share") },
+                        onClick = { menuExpanded = false; onShare() }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Delete") },
+                        onClick = { menuExpanded = false; onDelete() }
+                    )
+                }
+            }
         }
     }
 }

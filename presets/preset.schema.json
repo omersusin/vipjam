@@ -1,0 +1,339 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vipjam.local/schemas/preset.schema.json",
+  "title": "VipJam preset v3",
+  "description": "Single source of truth for VipJam preset schema v3. Sparse form (any subset of groups) is accepted everywhere; dense form (every viper group present, missing stages filled with neutral defaults) is the canonical bank form produced by tools/convert_universal.py. JSON key for loudness is 'loudnessComp' (Kotlin: VipJamEffects.LOUDNESS; DSP stage: VJ_STAGE_LOUDNESS). DDC has two valid shapes when enabled: device reference ({device: '<name>.vdc'}) or raw coefficients ({sr44100:[...], sr48000:[...]}, each non-empty with length % 5 == 0). Unknown numeric top-level keys (legacy v1 param ids), 'dsp.*' james passthrough stages and source-fidelity keys are preserved verbatim, never dropped.",
+  "type": "object",
+  "required": ["schemaVersion", "origin", "name"],
+  "properties": {
+    "schemaVersion": {"const": 3},
+    "origin": {"enum": ["viper", "james", "vipjam"]},
+    "name": {"type": "string", "minLength": 1},
+    "masterEnable": {"type": "boolean", "default": true},
+    "route": {"enum": ["headset", "speaker", "bluetooth", "usb"]},
+    "source": {"type": "string", "description": "Bank tag, e.g. viper-v2, wstxda, jamesdsp. Optional for loose presets, set for bank outputs."},
+    "sourceName": {"type": "string", "description": "Original filename the preset was converted from. Optional."},
+    "createdAt": {"type": "string"},
+    "sourceText": {"type": "string"},
+    "sourcePreampDb": {"type": "number"},
+    "sourceFilters": {"type": "array"},
+    "sourceGraphicPoints": {"type": "array"},
+    "masterLimiter": {
+      "type": "object",
+      "properties": {
+        "threshold": {"type": "number", "minimum": 30, "maximum": 100},
+        "outputVolume": {"type": "number", "minimum": 1, "maximum": 200},
+        "channelPan": {"type": "number", "minimum": -100, "maximum": 100}
+      }
+    },
+    "playbackGainControl": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "strength": {"type": "number", "minimum": 50, "maximum": 300},
+        "maxGain": {"type": "number", "minimum": 100, "maximum": 1000},
+        "outputThreshold": {"type": "number", "minimum": 30, "maximum": 100}
+      }
+    },
+    "lufs": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "target": {"type": "number", "minimum": 80, "maximum": 240},
+        "maxGain": {"type": "number", "minimum": 0, "maximum": 120},
+        "speed": {"type": "number", "minimum": 0, "maximum": 2}
+      }
+    },
+    "fetCompressor": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "threshold": {"type": "number", "minimum": -48, "maximum": 0},
+        "ratio": {"type": "number", "minimum": 0, "maximum": 200},
+        "kneeAuto": {"type": "boolean"},
+        "knee": {"type": "number", "minimum": 0, "maximum": 12},
+        "kneeMulti": {"type": "number", "minimum": 0, "maximum": 100},
+        "gainAuto": {"type": "boolean"},
+        "gain": {"type": "number", "minimum": 0, "maximum": 24},
+        "attackAuto": {"type": "boolean"},
+        "attack": {"type": "number", "minimum": 1, "maximum": 100},
+        "maxAttack": {"type": "number", "minimum": 1, "maximum": 100},
+        "releaseAuto": {"type": "boolean"},
+        "release": {"type": "number", "minimum": 5, "maximum": 500},
+        "maxRelease": {"type": "number", "minimum": 5, "maximum": 500},
+        "crest": {"type": "number", "minimum": 5, "maximum": 300},
+        "adapt": {"type": "number", "minimum": 0, "maximum": 200},
+        "noClip": {"type": "boolean"}
+      }
+    },
+    "multibandCompressor": {
+      "type": "object",
+      "required": ["enable"],
+      "description": "Per-band list fields accept ';'-joined strings (v1 wire form) or arrays (bank form). Ranges: crossovers 30..16000, thresholds -48..0, ratios 0..200, gains 0..24, knees 0..12, kneeMultis 0..100, attacks/maxAttacks 1..100, releases/maxReleases 5..500, crests 5..300, adapts 0..200.",
+      "properties": {
+        "enable": {"type": "boolean"},
+        "bandEnables": {"type": ["string", "array"]},
+        "crossovers": {"type": ["string", "array"]},
+        "thresholds": {"type": ["string", "array"]},
+        "ratios": {"type": ["string", "array"]},
+        "gains": {"type": ["string", "array"]},
+        "knees": {"type": ["string", "array"]},
+        "kneeMultis": {"type": ["string", "array"]},
+        "attacks": {"type": ["string", "array"]},
+        "maxAttacks": {"type": ["string", "array"]},
+        "releases": {"type": ["string", "array"]},
+        "maxReleases": {"type": ["string", "array"]},
+        "crests": {"type": ["string", "array"]},
+        "adapts": {"type": ["string", "array"]},
+        "kneeAutos": {"type": ["string", "array"]},
+        "gainAutos": {"type": ["string", "array"]},
+        "attackAutos": {"type": ["string", "array"]},
+        "releaseAutos": {"type": ["string", "array"]},
+        "noClips": {"type": ["string", "array"]}
+      }
+    },
+    "ddc": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "device": {"type": "string", "description": "VDC device reference, e.g. 'AKG EO-IG955.vdc'. Basename; stage content from Kernel/DDC dir."},
+        "sr44100": {"type": "array", "minItems": 5, "items": {"type": "number"}, "description": "SR_44100 biquad coeffs, length % 5 == 0, all finite."},
+        "sr48000": {"type": "array", "minItems": 5, "items": {"type": "number"}, "description": "SR_48000 biquad coeffs, length % 5 == 0, all finite."}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"enable": {"const": true}}},
+          "then": {
+            "anyOf": [
+              {"properties": {"device": {"minLength": 1}}, "required": ["device"]},
+              {"required": ["sr44100", "sr48000"]}
+            ]
+          }
+        }
+      ]
+    },
+    "spectrumExtension": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "strength": {"type": "number", "minimum": 2200, "maximum": 8200},
+        "exciter": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "equalizer": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "bandCount": {"type": "integer"},
+        "bands": {"type": "array", "items": {"type": "number", "minimum": -12, "maximum": 12}, "description": "Per-band dB; bandCount must equal len(bands) (enforced in code)."},
+        "presetId": {"type": ["integer", "null"]}
+      }
+    },
+    "dynamicEq": {
+      "type": "object",
+      "required": ["enable"],
+      "description": "List fields accept ';'-joined strings or arrays. Ranges: freqs 20..20000, qs 50..800, gains -120..120, thresholds -800..0, attacks 1..100, releases 10..500.",
+      "properties": {
+        "enable": {"type": "boolean"},
+        "bandCount": {"type": "integer"},
+        "freqs": {"type": ["string", "array"]},
+        "qs": {"type": ["string", "array"]},
+        "gains": {"type": ["string", "array"]},
+        "thresholds": {"type": ["string", "array"]},
+        "attacks": {"type": ["string", "array"]},
+        "releases": {"type": ["string", "array"]},
+        "filterTypes": {"type": ["string", "array"]}
+      }
+    },
+    "convolver": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "kernelFile": {"type": "string", "description": "IR basename; content staged next to the preset. Dangling names stay as provenance with enable=false (see bank/DANGLING_REFS.md)."},
+        "crossChannel": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "fieldSurround": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "widening": {"type": "number", "minimum": 0, "maximum": 8},
+        "midImage": {"type": "number", "minimum": 0, "maximum": 10},
+        "depth": {"type": "number", "minimum": 0, "maximum": 10}
+      }
+    },
+    "diffSurround": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "delay": {"type": "number", "minimum": 1, "maximum": 20},
+        "reverse": {"type": "boolean"},
+        "wetDryMix": {"type": "number", "minimum": 0, "maximum": 100},
+        "lpCutoff": {"type": "number", "minimum": 0, "maximum": 20000}
+      }
+    },
+    "stereoImager": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "lowWidth": {"type": "number", "minimum": 0, "maximum": 200},
+        "midWidth": {"type": "number", "minimum": 0, "maximum": 200},
+        "highWidth": {"type": "number", "minimum": 0, "maximum": 200},
+        "lowCrossover": {"type": "number", "minimum": 80, "maximum": 400},
+        "highCrossover": {"type": "number", "minimum": 2000, "maximum": 8000}
+      }
+    },
+    "headphoneSurround": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "quality": {"type": "number", "minimum": 0, "maximum": 4}
+      }
+    },
+    "reverb": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "roomSize": {"type": "number", "minimum": 0, "maximum": 10},
+        "width": {"type": "number", "minimum": 0, "maximum": 10},
+        "damp": {"type": "number", "minimum": 0, "maximum": 10},
+        "wet": {"type": "number", "minimum": 0, "maximum": 100},
+        "dry": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "dynamicSystem": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "presetId": {"type": ["integer", "null"]},
+        "device": {"type": "number"},
+        "strength": {"type": "number", "minimum": 0, "maximum": 100},
+        "xLow": {"type": "number", "minimum": 0, "maximum": 2400},
+        "xHigh": {"type": "number", "minimum": 0, "maximum": 12000},
+        "yLow": {"type": "number", "minimum": 0, "maximum": 200},
+        "yHigh": {"type": "number", "minimum": 0, "maximum": 300},
+        "sideGainLow": {"type": "number", "minimum": 0, "maximum": 100},
+        "sideGainHigh": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "psychoacousticBass": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "cutoff": {"type": "number", "minimum": 60, "maximum": 150},
+        "intensity": {"type": "number", "minimum": 0, "maximum": 100},
+        "harmonicOrder": {"type": "number", "minimum": 2, "maximum": 5},
+        "originalLevel": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "bass": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "mode": {"type": "number"},
+        "frequency": {"type": "number", "minimum": 0, "maximum": 135},
+        "gain": {"type": "number", "minimum": 50, "maximum": 1000},
+        "antiPop": {"type": "boolean"}
+      }
+    },
+    "bassMono": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "mode": {"type": "number"},
+        "frequency": {"type": "number", "minimum": 0, "maximum": 135},
+        "gain": {"type": "number", "minimum": 50, "maximum": 1000},
+        "antiPop": {"type": "boolean"}
+      }
+    },
+    "clarity": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "mode": {"type": "number"},
+        "gain": {"type": "number", "minimum": 0, "maximum": 450}
+      }
+    },
+    "cure": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "crossfeedPreset": {"type": "number"}
+      }
+    },
+    "tubeSimulator": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {"enable": {"type": "boolean"}}
+    },
+    "analogX": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "mode": {"type": "number"}
+      }
+    },
+    "speakerCorrection": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {"enable": {"type": "boolean"}}
+    },
+    "loudnessComp": {
+      "type": "object",
+      "required": ["enable"],
+      "description": "Canonical JSON key is 'loudnessComp' (Kotlin const VipJamEffects.LOUDNESS, DSP stage VJ_STAGE_LOUDNESS).",
+      "properties": {"enable": {"type": "boolean"}}
+    },
+    "liveprog": {
+      "type": "object",
+      "required": ["enable"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "scripts": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "james": {
+      "type": "object",
+      "properties": {
+        "masterswitch": {"type": "object", "properties": {"limThreshold": {"type": "number"}, "limRelease": {"type": "number"}, "postGain": {"type": "number"}}},
+        "compression": {"type": "object", "properties": {"enable": {"type": "boolean"}, "timeConstant": {"type": "number"}, "granularity": {"type": "number"}, "tfResolution": {"type": "number"}, "freqs": {"type": "array", "items": {"type": "number"}}, "gains": {"type": "array", "items": {"type": "number"}}}},
+        "bass": {"type": "object", "properties": {"enable": {"type": "boolean"}, "maxGain": {"type": "number"}}},
+        "tone": {"type": "object", "properties": {"enable": {"type": "boolean"}, "filterType": {"type": "number"}, "interpolation": {"type": "number"}, "freqs": {"type": "array", "items": {"type": "number"}}, "gains": {"type": "array", "items": {"type": "number"}}}},
+        "streq": {"type": "object", "properties": {"enable": {"type": "boolean"}, "graphicEq": {"type": "string"}}},
+        "convolver": {"type": "object", "properties": {"enable": {"type": "boolean"}, "kernelFile": {"type": "string"}}},
+        "ddc": {"type": "object", "properties": {"enable": {"type": "boolean"}, "device": {"type": "string"}}},
+        "liveprog": {"type": "object", "properties": {"enable": {"type": "boolean"}, "scripts": {"type": "array", "items": {"type": "string"}}}},
+        "tube": {"type": "object", "properties": {"enable": {"type": "boolean"}, "drive": {"type": "number"}}},
+        "stereowide": {"type": "object", "properties": {"enable": {"type": "boolean"}, "mode": {"type": "number"}}},
+        "bs2b": {"type": "object", "properties": {"enable": {"type": "boolean"}, "mode": {"type": "number"}}},
+        "headphone": {"type": "object", "properties": {"enable": {"type": "boolean"}, "preset": {"type": "number"}}}
+      },
+      "patternProperties": {
+        "^dsp\\.": {"description": "Unknown james prefs preserved verbatim."}
+      }
+    }
+  },
+  "patternProperties": {
+    "^[0-9]+$": {"description": "Legacy v1 numeric param ids preserved verbatim."},
+    "^dsp\\.": {"description": "Unknown james prefs preserved verbatim."}
+  }
+}

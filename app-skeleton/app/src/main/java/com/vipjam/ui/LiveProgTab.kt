@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +17,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
@@ -26,8 +33,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -56,19 +66,30 @@ private val EXAMPLES = listOf(
 private fun timeOf(millis: Long): String =
     SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(millis))
 
+private val QueuedRunListSaver = Saver<List<QueuedRun>, List<String>>(
+    save = { list -> list.map { "${it.atMillis}\u001F${it.name}\u001F${it.status}" } },
+    restore = { saved ->
+        saved.mapNotNull { line ->
+            val parts = line.split("\u001F")
+            if (parts.size != 3) null
+            else QueuedRun(parts[1], parts[0].toLongOrNull() ?: 0L, parts[2])
+        }
+    },
+)
+
 @Composable
 fun LiveProgTab(snackbar: SnackbarHostState) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { LiveProgStore(context.prefs) }
     val entries by store.entries.collectAsState(initial = emptyList())
-    var name by remember { mutableStateOf("") }
-    var script by remember { mutableStateOf("") }
-    var stdout by remember { mutableStateOf("") }
-    var stderr by remember { mutableStateOf("") }
-    var lastRun by remember { mutableStateOf("") }
-    var queue by remember { mutableStateOf(emptyList<QueuedRun>()) }
-    var expanded by remember { mutableStateOf<String?>(null) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var script by rememberSaveable { mutableStateOf("") }
+    var stdout by rememberSaveable { mutableStateOf("") }
+    var stderr by rememberSaveable { mutableStateOf("") }
+    var lastRun by rememberSaveable { mutableStateOf("") }
+    var queue by rememberSaveable(stateSaver = QueuedRunListSaver) { mutableStateOf(emptyList<QueuedRun>()) }
+    var expanded by rememberSaveable { mutableStateOf<String?>(null) }
     val reducedMotion = rememberReducedMotion()
 
     fun message(text: String) {
@@ -304,36 +325,50 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
                             ),
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                expanded = if (expanded == entry.name) null else entry.name
-                            },
-                        ) {
-                            Text(if (expanded == entry.name) "Hide" else "View")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                name = entry.name
-                                script = entry.script
-                            },
-                        ) {
-                            Text("Edit")
-                        }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         OutlinedButton(
                             onClick = { runScript(entry.name, entry.script) },
                         ) {
                             Text("Run")
                         }
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    store.delete(entry.name)
-                                    message("Deleted ${entry.name}")
-                                }
-                            },
-                        ) {
-                            Text("Delete")
+                        Box {
+                            var menuExpanded by remember { mutableStateOf(false) }
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "Script actions")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (expanded == entry.name) "Hide" else "View") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        expanded = if (expanded == entry.name) null else entry.name
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Edit") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        name = entry.name
+                                        script = entry.script
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        scope.launch {
+                                            store.delete(entry.name)
+                                            message("Deleted ${entry.name}")
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                     }
