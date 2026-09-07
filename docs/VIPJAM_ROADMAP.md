@@ -448,7 +448,7 @@ inaudible; fixed, range to 24dB) applied from day one.
   alienware double-confirmed); ViPER-only mode (authentic naming/order/limiter,
   everything else off); collapsible plain-language explainers per section.
 - Kernel library: convolver/DDC with search, custom sort, hide, groups +
-  repo download (skip owned); **446 official DDC bundled**, auto-install.
+  repo download (skip owned); **446 official DDC catalog supported via repo download (only hd600 demo ships in-tree)**, auto-install.
 - LiveProg: **4 chained scripts**, multi-select picker, mini IDE (highlight,
   console output, inline errors, auto-slider UI from script — JDSP4Linux pattern).
 - Loudness: ISO-226:2023 compensator (8-biquad cascade, 50ms ramp, ref

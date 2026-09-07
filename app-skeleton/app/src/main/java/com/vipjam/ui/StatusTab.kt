@@ -304,7 +304,7 @@ fun StatusTab(store: PresetStore) {
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "Version name: unknown (GET_VERSION_NAME returns raw bytes; getParam only decodes int)",
+                            "Version name: ${currentProbe.versionName ?: "unknown"}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -6,7 +6,7 @@
 
 MODID=vipjam
 LIB=libvipjam.so
-UUID=1b222930-cde3-5b6f-81a4-f67b3334a73e
+UUID=90380da3-8536-4744-a6a3-5731970e640f
 
 # $1 = path to the merged audio_effects.xml being assembled by AML.
 # Appends our <library> + <effect> entries if not already present.

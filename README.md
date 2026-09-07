@@ -12,7 +12,8 @@ one DSP library (`libvipjam.so`), HIDL system effect on rooted Android.
 - `vipjam-magisk/` — root module (id `vipjam`): installer, `vipjam-ctl`,
   `aml.sh`, KernelSU WebUI in `webroot/`
 - `presets/` — v3 presets (Movie, Game, LoongFX sets)
-- `tools/` — v2-to-v3 converter, kernel fetcher, fixtures
+- `tools/` — v2-to-v3 converter (`convert_v2_to_v3.py`), universal converter (`convert_universal.py`), headphonefx generator (`convert_headphonefx.py`), kernel fetcher, fixtures
+- `docs/` — roadmap, device testing, release signing (`docs/RELEASE_SIGNING.md`)
 - `kernels/` — IR kernels + manifest
 - `docs/` — roadmap and device testing
 - `upstream-*` — reference sources (research only)

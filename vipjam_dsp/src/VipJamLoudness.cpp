@@ -33,15 +33,22 @@ VipJamLoudness::VipJamLoudness()
 
 VipJamLoudness::Coeff VipJamLoudness::shelfLow(float fc, float q, float gainDb,
                                                float sr) {
+    if (!(q > 0.1f) || !(q < 10.0f)) q = 0.7f;
+    if (!(sr > 0.0f)) sr = 44100.0f;
+    if (fc > sr * 0.45f) fc = sr * 0.45f;
+    if (fc < 10.0f) fc = 10.0f;
     float a = powf(10.0f, gainDb / 40.0f);
     float w0 = 2.0f * kPi * fc / sr;
     float cw = cosf(w0);
-    float alpha = sinf(w0) / 2.0f * sqrtf((a + 1.0f / a) * (1.0f / q - 1.0f) + 2.0f);
+    float inner = (a + 1.0f / a) * (1.0f / q - 1.0f) + 2.0f;
+    if (!(inner > 0.0f)) inner = 0.0f;
+    float alpha = sinf(w0) / 2.0f * sqrtf(inner);
     float sq = 2.0f * sqrtf(a) * alpha;
     float b0 = a * ((a + 1.0f) - (a - 1.0f) * cw + sq);
     float b1 = 2.0f * a * ((a - 1.0f) - (a + 1.0f) * cw);
     float b2 = a * ((a + 1.0f) - (a - 1.0f) * cw - sq);
     float a0 = (a + 1.0f) + (a - 1.0f) * cw + sq;
+    if (!(a0 > 1e-6f) && !(a0 < -1e-6f)) a0 = 1.0f;
     float a1 = -2.0f * ((a - 1.0f) + (a + 1.0f) * cw);
     float a2 = (a + 1.0f) + (a - 1.0f) * cw - sq;
     return {b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0};
@@ -49,6 +56,10 @@ VipJamLoudness::Coeff VipJamLoudness::shelfLow(float fc, float q, float gainDb,
 
 VipJamLoudness::Coeff VipJamLoudness::peak(float fc, float q, float gainDb,
                                            float sr) {
+    if (!(q > 0.1f) || !(q < 10.0f)) q = 1.0f;
+    if (!(sr > 0.0f)) sr = 44100.0f;
+    if (fc > sr * 0.45f) fc = sr * 0.45f;
+    if (fc < 10.0f) fc = 10.0f;
     float a = powf(10.0f, gainDb / 40.0f);
     float w0 = 2.0f * kPi * fc / sr;
     float cw = cosf(w0);
@@ -57,6 +68,7 @@ VipJamLoudness::Coeff VipJamLoudness::peak(float fc, float q, float gainDb,
     float b1 = -2.0f * cw;
     float b2 = 1.0f - alpha * a;
     float a0 = 1.0f + alpha / a;
+    if (!(a0 > 1e-6f) && !(a0 < -1e-6f)) a0 = 1.0f;
     float a1 = -2.0f * cw;
     float a2 = 1.0f - alpha / a;
     return {b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0};
@@ -64,15 +76,22 @@ VipJamLoudness::Coeff VipJamLoudness::peak(float fc, float q, float gainDb,
 
 VipJamLoudness::Coeff VipJamLoudness::shelfHigh(float fc, float q,
                                                 float gainDb, float sr) {
+    if (!(q > 0.1f) || !(q < 10.0f)) q = 0.7f;
+    if (!(sr > 0.0f)) sr = 44100.0f;
+    if (fc > sr * 0.45f) fc = sr * 0.45f;
+    if (fc < 10.0f) fc = 10.0f;
     float a = powf(10.0f, gainDb / 40.0f);
     float w0 = 2.0f * kPi * fc / sr;
     float cw = cosf(w0);
-    float alpha = sinf(w0) / 2.0f * sqrtf((a + 1.0f / a) * (1.0f / q - 1.0f) + 2.0f);
+    float inner = (a + 1.0f / a) * (1.0f / q - 1.0f) + 2.0f;
+    if (!(inner > 0.0f)) inner = 0.0f;
+    float alpha = sinf(w0) / 2.0f * sqrtf(inner);
     float sq = 2.0f * sqrtf(a) * alpha;
     float b0 = a * ((a + 1.0f) + (a - 1.0f) * cw + sq);
     float b1 = -2.0f * a * ((a - 1.0f) + (a + 1.0f) * cw);
     float b2 = a * ((a + 1.0f) + (a - 1.0f) * cw - sq);
     float a0 = (a + 1.0f) - (a - 1.0f) * cw + sq;
+    if (!(a0 > 1e-6f) && !(a0 < -1e-6f)) a0 = 1.0f;
     float a1 = 2.0f * ((a - 1.0f) - (a + 1.0f) * cw);
     float a2 = (a + 1.0f) - (a - 1.0f) * cw - sq;
     return {b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0};
@@ -93,7 +112,7 @@ void VipJamLoudness::recompute() {
 }
 
 void VipJamLoudness::setSampleRate(uint32_t rate) {
-    if (rate == 0) return;
+    if (rate < 8000 || rate > 192000) return;
     sampleRate_ = rate;
     rampFrames_ = (uint32_t)(VIPJAM_LOUDNESS_RAMP_SEC * (float)rate);
     if (rampFrames_ < 1) rampFrames_ = 1;
@@ -106,6 +125,8 @@ void VipJamLoudness::setEnabled(bool enabled) {
 
 void VipJamLoudness::setVolume(float device01, float app01,
                                float thresholdDb) {
+    if (!isfinite(device01) || !isfinite(app01) || !isfinite(thresholdDb)) return;
+    if (thresholdDb < -80.0f || thresholdDb > 0.0f) return;
     float v = device01 * app01;
     if (v < 1e-6f) v = 1e-6f;
     if (v > 1.0f) v = 1.0f;

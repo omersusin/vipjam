@@ -1,0 +1,6 @@
+allow audioserver audioserver_tmpfs file { read write execute }
+allow mediaserver audioserver_tmpfs file { read write execute }
+allow hal_audio_default audioserver_tmpfs file { read write execute }
+allow audioserver system_file file execmod
+allow hal_audio_default process execmem
+allow audioserver audio_data_file dir search

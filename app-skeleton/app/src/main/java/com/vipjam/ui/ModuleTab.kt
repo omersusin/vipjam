@@ -122,7 +122,9 @@ fun ModuleTab(snackbar: SnackbarHostState) {
             inlineError = null
             try {
                 val asset = withContext(Dispatchers.IO) { ReleaseApi.latestModuleAsset() }
-                val dest = File(context.cacheDir, asset.name)
+                val safeName = File(asset.name).name
+                require(safeName.matches(Regex("[A-Za-z0-9._-]+")) && !safeName.contains("..")) { "bad asset name" }
+                val dest = File(context.cacheDir, safeName)
                 withContext(Dispatchers.IO) {
                     ReleaseApi.download(asset.url, dest) { p -> downloadProgress = p }
                 }

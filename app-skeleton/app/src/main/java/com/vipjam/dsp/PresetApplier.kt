@@ -196,11 +196,11 @@ object PresetApplier {
             if (key in META_KEYS) continue
             if (key in DISPATCHED_GROUPS) continue
             if (key in PASS_THROUGH_GROUPS) {
-                Log.d(TAG, "apply: group $key has no driver param, skipped")
+                Log.d(TAG, "apply: group $key enable-only, values queued for future driver params")
                 continue
             }
             if (key == JAMES_KEY) {
-                Log.d(TAG, "apply: james stages have no driver param, skipped")
+                Log.d(TAG, "apply: james stages routed via SHM bulk path, skipped on legacy AudioEffect")
                 continue
             }
             Log.w(TAG, "apply: unknown group skipped: $key")

@@ -11,11 +11,13 @@ sealed interface FlashEvent {
     data class Finished(val ok: Boolean, val needsReboot: Boolean) : FlashEvent
 }
 
+fun qRoot(s: String): String = "'" + s.replace("'", "'\\''") + "'"
+
 fun flashCommand(manager: RootManager, zipPath: String): String = when (manager) {
-    RootManager.MAGISK -> "magisk --install-module $zipPath"
-    RootManager.KERNELSU -> "ksud module install $zipPath"
-    RootManager.APATCH -> "apd module install $zipPath"
-    RootManager.NONE -> "magisk --install-module $zipPath"
+    RootManager.MAGISK -> "magisk --install-module ${qRoot(zipPath)}"
+    RootManager.KERNELSU -> "ksud module install ${qRoot(zipPath)}"
+    RootManager.APATCH -> "apd module install ${qRoot(zipPath)}"
+    RootManager.NONE -> "magisk --install-module ${qRoot(zipPath)}"
 }
 
 fun parseModuleProp(text: String): Map<String, String> {

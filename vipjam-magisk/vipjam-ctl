@@ -1,6 +1,6 @@
 #!/system/bin/sh
 MODDIR=${0%/*}
-UUID=1b222930-cde3-5b6f-81a4-f67b3334a73e
+UUID=90380da3-8536-4744-a6a3-5731970e640f
 LIB=libvipjam.so
 PRESET_DIR=/data/local/tmp/vipjam/presets
 SHM_BIN=/data/local/tmp/vipjam/shm_status.bin
@@ -197,10 +197,10 @@ do_help() {
 }
 
 send_cmd() {
-  settings put global vipjam_cmd "$1" >/dev/null
+  settings put global vipjam_cmd "$1" >/dev/null 2>&1 || { echo "send failed"; return 1; }
   seq="$(settings get global vipjam_cmd_seq 2>/dev/null)"
-  case "$seq" in ''|*[!0-9]*) seq=0 ;; esac
-  settings put global vipjam_cmd_seq "$((seq + 1))" >/dev/null
+  case "$seq" in ''|null|*[!0-9]*) seq=0 ;; esac
+  settings put global vipjam_cmd_seq "$((seq + 1))" >/dev/null 2>&1 || { echo "send failed"; return 1; }
   echo "sent"
 }
 
@@ -228,13 +228,23 @@ do_param() {
 
 do_preset() {
   [ -f "$1" ] || { echo "no such file: $1"; exit 2; }
-  compact="$(tr -d '\n\r' < "$1")"
-  stripped="$(tr -d ' \t' < "$1")"
-  case "$stripped" in
-    '{'*'}') ;;
-    *) echo "not a JSON object: $1"; exit 2 ;;
-  esac
-  send_cmd "{\"cmd\":\"preset\",\"json\":$compact}"
+  size="$(wc -c < "$1" 2>/dev/null)"
+  case "$size" in ''|*[!0-9]*) echo "cannot stat: $1"; exit 2 ;; esac
+  [ "$size" -gt 0 ] || { echo "empty preset: $1"; exit 2; }
+  [ "$size" -gt 1048576 ] && { echo "preset too large (>1MB), binder limit"; exit 2; }
+  if ! python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d,dict) and d.get("schemaVersion")==3, "need schemaVersion 3 object"' "$1" 2>/dev/null; then
+    if ! grep -q '"schemaVersion"[[:space:]]*:[[:space:]]*3' "$1" 2>/dev/null; then
+      echo "not a v3 preset object (need schemaVersion 3): $1"; exit 2
+    fi
+    stripped="$(tr -d ' \t\n\r' < "$1")"
+    case "$stripped" in
+      '{'*'}') ;;
+      *) echo "not a JSON object: $1"; exit 2 ;;
+    esac
+  fi
+  b64="$(base64 < "$1" 2>/dev/null | tr -d '\n\r')"
+  [ -n "$b64" ] || { echo "encode failed: $1"; exit 2; }
+  send_cmd "{\"cmd\":\"preset\",\"b64\":\"$b64\"}"
 }
 
 case "$1" in

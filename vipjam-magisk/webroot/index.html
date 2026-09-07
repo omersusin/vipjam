@@ -7,7 +7,7 @@
 <link rel="stylesheet" type="text/css" href="https://mui.kernelsu.org/internal/insets.css" />
 <link rel="stylesheet" type="text/css" href="https://mui.kernelsu.org/internal/colors.css" />
 <style>
-  body { padding: 16px; background-color: var(--background); color: var(--onBackground); font-family: sans-serif; }
+  body { padding: 16px; background: #111; background-color: var(--background, #111); color: var(--onBackground, #eee); font-family: sans-serif; }
   .card { padding: 16px; background-color: var(--surfaceContainer); border-radius: 20px; margin-bottom: 12px; }
   .row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; gap: 12px; }
   button { padding: 10px 18px; border-radius: 12px; border: none; background: var(--primary); color: var(--onPrimary); }
@@ -17,7 +17,8 @@
   input[type=range] { width: 100%; }
   .status { font-family: monospace; font-size: 12px; white-space: pre-wrap; }
   .note { font-size: 12px; opacity: 0.7; }
-  .preset { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+  .preset { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; gap: 8px; flex-wrap: wrap; }
+  .toast { font-size: 12px; color: #ff8a80; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -45,6 +46,7 @@
     <h3>Presets</h3>
     <div class="row"><input type="text" id="presetLink" placeholder="vipjam://preset link" /></div>
     <div class="row"><button id="presetBtn" class="ghost">Save link as preset</button></div>
+    <div class="toast" id="presetToast"></div>
     <div id="presetList"></div>
   </div>
   <div class="card">
@@ -57,6 +59,7 @@
     <div class="note">Upload .vdc / .wav / .irs into staging. The app pushes them to the driver from Effects.</div>
     <div class="row"><input type="file" id="kernelFile" accept=".vdc,.wav,.irs" /></div>
     <div class="row"><button id="kernelBtn" class="ghost">Stage file</button></div>
+    <div class="toast" id="kernelToast"></div>
     <div id="kernelList"></div>
   </div>
   <div class="card">
@@ -78,15 +81,23 @@
   let timers = {};
 
   async function sh(cmd) {
-    const r = await ksu.exec(cmd);
-    return (r.stdout || "") + (r.stderr || "");
+    try {
+      const r = await ksu.exec(cmd);
+      return (r.stdout || "") + (r.stderr || "");
+    } catch (e) {
+      return "exec failed: " + (e && e.message ? e.message : e);
+    }
+  }
+  function toast(id, msg) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = msg;
   }
   function q(s) {
     return "'" + String(s).replace(/'/g, "'\\''") + "'";
   }
   function debounced(key, fn) {
     clearTimeout(timers[key]);
-    timers[key] = setTimeout(fn, 120);
+    timers[key] = setTimeout(() => { fn().catch(() => {}); }, 120);
   }
   function decodeLink(link) {
     const p = "vipjam://preset?c=";
@@ -106,14 +117,25 @@
     }
   }
   function setEnabled(on) {
-    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn", "diagBtn", "kernelBtn", "logsBtn", "resetPresetsBtn", "resetPropsBtn"]) {
-      document.getElementById(id).disabled = !on;
+    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn", "presetLink", "diagBtn", "kernelBtn", "kernelFile", "logsBtn", "resetPresetsBtn", "resetPropsBtn", "refreshBtn"]) {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !on;
     }
     document.getElementById("nobeCtl").hidden = on;
   }
   async function probe() {
-    const out = await sh("command -v vipjam-ctl");
-    hasCtl = out.trim() !== "";
+    if (!window.ksu || !ksu.exec) {
+      hasCtl = false;
+      setEnabled(false);
+      document.getElementById("status").textContent = "no ksu bridge — open in KernelSU WebUI";
+      return;
+    }
+    try {
+      const out = await sh("command -v vipjam-ctl");
+      hasCtl = out.trim() !== "";
+    } catch (e) {
+      hasCtl = false;
+    }
     setEnabled(hasCtl);
   }
   async function refresh() {
@@ -185,12 +207,18 @@
       box.appendChild(div);
     }
   }
+  function clampSlider(v) {
+    const n = parseInt(v, 10);
+    if (isNaN(n)) return 50;
+    return Math.min(100, Math.max(0, n));
+  }
   function restoreSliders() {
     for (const [id, val] of [["bass", "bassVal"], ["clarity", "clarVal"]]) {
       const saved = localStorage.getItem("vipjam." + id);
       if (saved !== null) {
-        document.getElementById(id).value = saved;
-        document.getElementById(val).textContent = saved;
+        const c = clampSlider(saved);
+        document.getElementById(id).value = c;
+        document.getElementById(val).textContent = c;
       }
     }
   }
@@ -209,9 +237,13 @@
   };
   document.getElementById("kernelBtn").onclick = async () => {
     const input = document.getElementById("kernelFile");
-    if (!input.files || !input.files[0]) return;
+    if (!input.files || !input.files[0]) { toast("kernelToast", "no file selected"); return; }
     const f = input.files[0];
-    if (f.size > 32 * 1024 * 1024) return;
+    if (!/\.(vdc|wav|irs)$/i.test(f.name)) { toast("kernelToast", "only .vdc/.wav/.irs allowed"); return; }
+    if (f.size > 4 * 1024 * 1024) { toast("kernelToast", "file too large (max 4MB for WebUI staging)"); return; }
+    const safe = f.name.replace(/[^A-Za-z0-9._-]/g, "_");
+    if (safe.indexOf("..") !== -1) { toast("kernelToast", "invalid filename"); return; }
+    toast("kernelToast", "staging " + safe + "…");
     const buf = new Uint8Array(await f.arrayBuffer());
     let bin = "";
     const CH = 8192;
@@ -219,8 +251,9 @@
       bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
     }
     const b64 = btoa(bin);
-    await sh("mkdir -p " + q(KERNEL_DIR) + " && echo " + b64 + " | base64 -d > " + q(KERNEL_DIR + "/" + f.name.replace(/[^A-Za-z0-9._-]/g, "_")));
+    await sh("mkdir -p " + q(KERNEL_DIR) + " && printf '%s' " + q(b64) + " | base64 -d > " + q(KERNEL_DIR + "/" + safe));
     input.value = "";
+    toast("kernelToast", "staged " + safe);
     listKernels();
   };
   document.getElementById("masterBtn").onclick = async () => {
@@ -233,9 +266,9 @@
   };
   for (const [id, paramId, val, mode] of [[ "bass", P_BASS_GAIN, "bassVal", 0 ], [ "clarity", F_CLARITY, "clarVal", 0 ]]) {
     document.getElementById(id).oninput = (e) => {
-      document.getElementById(val).textContent = e.target.value;
-      localStorage.setItem("vipjam." + id, e.target.value);
-      const v = e.target.value;
+      const v = clampSlider(e.target.value);
+      document.getElementById(val).textContent = v;
+      localStorage.setItem("vipjam." + id, String(v));
       debounced(id, () => sh("vipjam-ctl param " + paramId + " " + v + " " + mode));
     };
   }
@@ -244,13 +277,14 @@
     let text = null;
     if (link.startsWith("vipjam://preset?c=")) {
       text = decodeLink(link);
-      if (text === null) return;
+      if (text === null) { toast("presetToast", "invalid preset link"); return; }
     } else {
       try {
         const obj = JSON.parse(link);
-        if (!obj || typeof obj !== "object" || obj.schemaVersion !== 3) return;
+        if (!obj || typeof obj !== "object" || obj.schemaVersion !== 3) { toast("presetToast", "preset needs schemaVersion 3"); return; }
         text = JSON.stringify(obj);
       } catch (e) {
+        toast("presetToast", "not a preset link or JSON");
         return;
       }
     }
@@ -259,8 +293,9 @@
     document.getElementById("presetLink").value = "";
     listPresets();
   };
+  setEnabled(false);
   restoreSliders();
-  probe().then(refresh);
+  probe().catch(() => {}).then(refresh);
 </script>
 </body>
 </html>

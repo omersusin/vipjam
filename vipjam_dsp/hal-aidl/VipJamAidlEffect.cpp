@@ -120,6 +120,7 @@ private:
             uint32_t n = 0;
             memcpy(&n, p, 4);
             p += 4;
+            if (n > (VIPJAM_SHM_SLOT_SIZE - 4) / 16) n = (VIPJAM_SHM_SLOT_SIZE - 4) / 16;
             for (uint32_t i = 0; i < n; ++i) {
                 int32_t id = 0;
                 float v0 = 0, v1 = 0, v2 = 0;
@@ -151,13 +152,21 @@ private:
                     continue;
                 switch (cmd) {
                     case VIPJAM_BULK_DDC:
-                        if (data && size > 8) chain.loadDDC((const char*)data);
+                        if (data && size > 8 && size <= 1048576) {
+                            std::string s((const char*)data, size);
+                            s.push_back('\0');
+                            chain.loadDDC(s.c_str());
+                        }
                         break;
                     case VIPJAM_BULK_CONV_PATH:
                         break;  // app-side file load; effect re-mmaps kernel
                     case VIPJAM_BULK_STREQ_TEXT:
                     case VIPJAM_BULK_LIVEPROG_SCRIPT:
-                        if (data) chain.loadLiveProg((const char*)data);
+                        if (data && size > 0 && size <= 1048576) {
+                            std::string s((const char*)data, size);
+                            s.push_back('\0');
+                            chain.loadLiveProg(s.c_str());
+                        }
                         break;
                     case VIPJAM_BULK_DDC_RESET:
                     case VIPJAM_BULK_CONV_RESET:

@@ -21,6 +21,7 @@ typedef struct {
 
 static int32_t vipjam_handle_set_param(vipjam_context_t *ctx,
                                        const effect_param_t *param) {
+    if (!ctx || !param) return VIPJAM_EINVAL;
     if (param->psize != sizeof(int32_t)) return VIPJAM_EINVAL;
     int32_t id;
     memcpy(&id, param->data, sizeof(id));
@@ -30,14 +31,30 @@ static int32_t vipjam_handle_set_param(vipjam_context_t *ctx,
         int32_t on;
         memcpy(&on, param->data + vj_padded_psize(param->psize), sizeof(on));
         ctx->enabled = (on != 0);
+        return VIPJAM_OK;
     }
-    return VIPJAM_OK;
+    const char *v = param->data + vj_padded_psize(param->psize);
+    float v0 = 0.0f, v1 = 0.0f, v2 = 0.0f;
+    if (param->vsize == sizeof(int32_t)) {
+        int32_t t; memcpy(&t, v, 4); v0 = (float)t;
+    } else if (param->vsize == 2 * sizeof(int32_t)) {
+        int32_t t0, t1; memcpy(&t0, v, 4); memcpy(&t1, v + 4, 4);
+        v0 = (float)t0; v1 = (float)t1;
+    } else if (param->vsize == 3 * sizeof(int32_t)) {
+        int32_t t0, t1, t2; memcpy(&t0, v, 4); memcpy(&t1, v + 4, 4); memcpy(&t2, v + 8, 4);
+        v0 = (float)t0; v1 = (float)t1; v2 = (float)t2;
+    } else {
+        return VIPJAM_EINVAL;
+    }
+    return ctx->chain.setFusedParam(fused, v0, v1, v2);
 }
 
 static int32_t vipjam_handle_get_param(vipjam_context_t *ctx,
                                        const effect_param_t *req,
                                        effect_param_t *reply,
                                        uint32_t *replySize) {
+    if (!ctx || !req || !reply || !replySize) return VIPJAM_EINVAL;
+    if (*replySize < sizeof(effect_param_t) + req->psize + sizeof(int32_t)) return VIPJAM_EINVAL;
     if (req->psize != sizeof(int32_t)) return VIPJAM_EINVAL;
     int32_t id;
     memcpy(&id, req->data, sizeof(id));
@@ -65,6 +82,7 @@ static int32_t vipjam_handle_get_param(vipjam_context_t *ctx,
 int32_t vipjam_context_command(vipjam_context_t *ctx, uint32_t cmd,
                                uint32_t cmdSize, void *cmdData,
                                uint32_t *replySize, void *replyData) {
+    if (!ctx || !replySize) return VIPJAM_EINVAL;
     switch (cmd) {
     case EFFECT_CMD_INIT:
         if (*replySize < sizeof(int)) return VIPJAM_EINVAL;
@@ -82,9 +100,11 @@ int32_t vipjam_context_command(vipjam_context_t *ctx, uint32_t cmd,
         ctx->enabled = false;
         return VIPJAM_OK;
     case EFFECT_CMD_SET_PARAM:
+        if (!cmdData) return VIPJAM_EINVAL;
         return vipjam_handle_set_param(
             ctx, static_cast<const effect_param_t *>(cmdData));
     case EFFECT_CMD_GET_PARAM:
+        if (!cmdData || !replyData) return VIPJAM_EINVAL;
         return vipjam_handle_get_param(
             ctx, static_cast<const effect_param_t *>(cmdData),
             static_cast<effect_param_t *>(replyData), replySize);

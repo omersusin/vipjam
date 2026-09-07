@@ -137,6 +137,8 @@ public:
             inBuffer->frame_count == 0)
             return -EINVAL;
         uint32_t frames = inBuffer->frame_count;
+        if (frames == 0 || frames > 8192) return -EINVAL;
+        if (inBuffer->raw == nullptr || outBuffer->raw == nullptr) return -EINVAL;
         if (work_.size() < frames * 2) work_.resize(frames * 2);
         audio_format_t fmt = (audio_format_t)config_.input_cfg.format;
         if (fmt == AUDIO_FORMAT_PCM_16_BIT) {
@@ -401,7 +403,7 @@ private:
             return -EINVAL;
         lastScript_.assign(scriptBuf_.data(), scriptTotal_);
         int rc = chain_.loadLiveProg(lastScript_.c_str());
-        if (rc <= 0) return -EINVAL;
+        if (rc <= 0) return -EINVAL;  // parsers return 1 on success, <=0 on failure
         chain_.setStageEnabled(VJ_STAGE_JAMES_LIVEPROG, true);
         scriptReset();
         return 0;
@@ -529,7 +531,7 @@ private:
 
 static const effect_descriptor_t kVipJamDescriptor = {
     *EFFECT_UUID_NULL,
-    {0x1b222930, 0xcde3, 0x5b6f, 0x81a4, {0xf6, 0x7b, 0x33, 0x34, 0xa7, 0x3e}},
+    {0x90380da3, 0x8536, 0x4744, 0xa6a3, {0x57, 0x31, 0x97, 0x0e, 0x64, 0x0f}},
     EFFECT_CONTROL_API_VERSION,
     EFFECT_FLAG_OUTPUT_DIRECT | EFFECT_FLAG_INPUT_DIRECT |
         EFFECT_FLAG_INSERT_LAST | EFFECT_FLAG_TYPE_INSERT,

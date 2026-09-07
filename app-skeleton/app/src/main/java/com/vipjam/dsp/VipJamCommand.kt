@@ -26,8 +26,20 @@ object VipJamCommandParser {
                 obj.optInt("v2", 0),
             ).takeIf { obj.has("id") }
             "preset" -> {
-                val json = obj.optString("json", "")
-                if (json.isBlank()) null else VipJamCommand.ApplyPreset(json)
+                val b64 = obj.optString("b64", "")
+                if (b64.isNotBlank()) {
+                    val decoded = runCatching {
+                        String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+                    }.getOrNull()
+                    if (decoded.isNullOrBlank()) null else VipJamCommand.ApplyPreset(decoded)
+                } else {
+                    val raw = obj.opt("json")
+                    val json = when (raw) {
+                        is JSONObject -> raw.toString()
+                        else -> obj.optString("json", "")
+                    }
+                    if (json.isBlank()) null else VipJamCommand.ApplyPreset(json)
+                }
             }
             else -> null
         }

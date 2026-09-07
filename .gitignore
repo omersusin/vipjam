@@ -22,3 +22,16 @@ upstream-jdspmgr/
 upstream-jdsp4linux/
 upstream-audiomods/
 __pycache__/
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+keystore/
+secrets/
+TEST-SIGNED.txt
+*.apk
+*.aab

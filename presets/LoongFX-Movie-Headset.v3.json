@@ -45,13 +45,13 @@
   },
   "convolver": {
     "enable": false,
-    "kernelFile": "LoongFX-Default.irs",
+    "kernelFile": "",
     "crossChannel": 22
   },
   "fieldSurround": {
     "enable": true,
-    "widening": 18,
-    "midImage": 20,
+    "widening": 8,
+    "midImage": 10,
     "depth": 0
   },
   "diffSurround": {

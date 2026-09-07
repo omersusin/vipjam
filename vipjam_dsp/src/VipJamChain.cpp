@@ -16,6 +16,7 @@ VipJamChain::~VipJamChain() {
 }
 
 void VipJamChain::setSamplingRate(uint32_t rate) {
+    if (rate < 8000 || rate > 192000) return;
     samplingRate_ = rate;
     loudness_.setSampleRate(rate);
     vj_james_set_rate(static_cast<vj_james_t *>(jdsp_), rate);
@@ -58,26 +59,31 @@ bool VipJamChain::isStageEnabled(vj_stage_t stage) const {
 }
 
 int VipJamChain::loadDDC(const char *vdcText) {
+    if (!jdsp_ || !vdcText) return -1;
     return vj_james_load_ddc(static_cast<vj_james_t *>(jdsp_), vdcText);
 }
 
 int VipJamChain::loadIR(const float *frames, unsigned int channels,
                         unsigned int len) {
+    if (!jdsp_ || !frames) return -1;
     return vj_james_load_ir(static_cast<vj_james_t *>(jdsp_), frames,
                             channels, len);
 }
 
 int VipJamChain::loadLiveProg(const char *eelText) {
+    if (!jdsp_ || !eelText) return -1;
     return vj_james_load_liveprog(static_cast<vj_james_t *>(jdsp_), eelText);
 }
 
 int VipJamChain::loadLiveProgMulti(const char **scripts, int n) {
+    if (!jdsp_ || !scripts) return -1;
     return vj_james_load_liveprog_multi(static_cast<vj_james_t *>(jdsp_),
                                         scripts, n);
 }
 
 void VipJamChain::setJamesEQ(const double *freqHz, const double *gainDb,
                              int interp) {
+    if (!jdsp_ || !freqHz || !gainDb) return;
     vj_james_set_eq15(static_cast<vj_james_t *>(jdsp_), freqHz, gainDb,
                       interp);
 }

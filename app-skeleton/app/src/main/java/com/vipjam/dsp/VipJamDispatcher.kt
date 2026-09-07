@@ -180,7 +180,8 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
     companion object {
         const val TAG = "VipJamDispatcher"
         val EFFECT_TYPE: UUID = UUID.fromString("ec7178ec-e5e1-4432-a3f4-4657e6795210")
-        val EFFECT_UUID: UUID = UUID.fromString("1b222930-cde3-5b6f-81a4-f67b3334a73e")
+        val EFFECT_TYPE_AIDL: UUID = UUID.fromString("7261676f-6d75-7369-6364-28e2fd3ac39e")
+        val EFFECT_UUID: UUID = UUID.fromString("90380da3-8536-4744-a6a3-5731970e640f")
 
         const val P_MASTER = 36868
         const val P_BASS_ENABLE = 65574

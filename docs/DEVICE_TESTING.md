@@ -79,9 +79,9 @@ su -c vipjam-ctl help       # full subcommand list
 3. Presets tab: apply `Movie` (ships in `presets/Movie.v3.json` and
    bundled at `app-skeleton/app/src/main/assets/presets/Movie.v3.json`).
    Or from a root shell:
-   `su -c vipjam-ctl apply-preset /sdcard/Movie.v3.json`
+   `su -c vipjam-ctl preset /sdcard/Movie.v3.json`
 4. Toggle master from the shell:
-   `su -c vipjam-ctl toggle-master`
+   `su -c vipjam-ctl toggle`
    (routes through the app service via `settings put global vipjam_cmd`).
    The KernelSU module WebUI (`vipjam-magisk/webroot/index.html`) has
    the same Master toggle.

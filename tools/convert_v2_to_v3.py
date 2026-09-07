@@ -272,6 +272,29 @@ def validate_v3(p: dict[str, Any]) -> list[str]:
     if isinstance(eq, dict) and isinstance(eq.get("bands"), list):
         if eq.get("bandCount") != len(eq["bands"]):
             errs.append("equalizer bandCount != len(bands)")
+    ddc = p.get("ddc")
+    if isinstance(ddc, dict) and ddc.get("enable"):
+        for sr in ("sr44100", "sr48000"):
+            coeffs = ddc.get(sr)
+            if not isinstance(coeffs, list) or not coeffs:
+                errs.append(f"ddc enabled but {sr} missing/empty (need SR_44100/SR_48000 coeffs)")
+            elif len(coeffs) % 5 != 0:
+                errs.append(f"ddc {sr} length % 5 != 0")
+            elif not all(isinstance(c, (int, float)) and c == c and abs(c) != float("inf") for c in coeffs):
+                errs.append(f"ddc {sr} has non-finite coeffs")
+    fs = p.get("fieldSurround")
+    if isinstance(fs, dict):
+        w = fs.get("widening")
+        if isinstance(w, (int, float)) and not (0 <= w <= 8):
+            errs.append(f"fieldSurround.widening {w} out of range (0,8)")
+        m = fs.get("midImage")
+        if isinstance(m, (int, float)) and not (0 <= m <= 10):
+            errs.append(f"fieldSurround.midImage {m} out of range (0,10)")
+    fet = p.get("fetCompressor")
+    if isinstance(fet, dict):
+        t = fet.get("threshold")
+        if isinstance(t, (int, float)) and not (-48 <= t <= 0):
+            errs.append(f"fetCompressor.threshold {t} out of range (-48,0)")
     return errs
 
 

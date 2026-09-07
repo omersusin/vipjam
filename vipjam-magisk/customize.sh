@@ -8,8 +8,7 @@
 # Config Flags
 ##########################################################################################
 
-#MINAPI=28
-#MAXAPI=35
+MINAPI=28
 DYNLIB=true
 #DEBUG=true
 
@@ -47,22 +46,27 @@ unzip -qjo "$ZIPFILE" 'common/functions.sh' -d $TMPDIR >&2
 # payload (install script + driver .so files + helpers) is really there.
 unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' 'vipjam-app.apk' -d $MODPATH >&2
 # VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
-. $MODPATH/common/install.sh
-LIBPATCH=`cat $MODPATH/libpatch.txt`
-CFGS="$(find /odm /system /vendor -type f -name "*audio_effects*.conf" -o -name "*audio_effects*.xml")"
+. "$MODPATH/common/install.sh"
+LIBPATCH="$(cat "$MODPATH/libpatch.txt" 2>/dev/null)"
+CFGS="$(find /odm /system /vendor -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) 2>/dev/null)"
 for FILE in ${CFGS}; do
-  case $FILE in
+  [ -f "$FILE" ] || continue
+  case "$FILE" in
     *.conf)
-        sed -i "/vipjam_fused {/,/}/d" $FILE
-        sed -i "/vipjam {/,/}/d" $FILE
-        sed -i "s/^effects {/effects {\n  vipjam_fused {\n    library vipjam\n    uuid 1b222930-cde3-5b6f-81a4-f67b3334a73e\n  }/g" $FILE
-        sed -i "s/^libraries {/libraries {\n  vipjam {\n    path $LIBPATCH\/lib\/soundfx\/libvipjam.so\n  }/g" $FILE
+        sed -i "/vipjam_fused {/,/}/d" -- "$FILE"
+        sed -i "/vipjam {/,/}/d" -- "$FILE"
+        sed -i "s/^[[:space:]]*effects {/effects {\n  vipjam_fused {\n    library vipjam\n    uuid 90380da3-8536-4744-a6a3-5731970e640f\n  }/g" -- "$FILE"
+        sed -i "s/^[[:space:]]*libraries {/libraries {\n  vipjam {\n    path $LIBPATCH\/lib\/soundfx\/libvipjam.so\n  }/g" -- "$FILE"
         ;;
     *.xml)
-        sed -i "/vipjam_fused/d" $FILE
-        sed -i "/vipjam\" path=\"libvipjam/d" $FILE
-        sed -i "/<libraries>/ a\        <library name=\"vipjam\" path=\"libvipjam.so\"\/>" $FILE
-        sed -i "/<effects>/ a\        <effect name=\"vipjam_fused\" library=\"vipjam\" uuid=\"1b222930-cde3-5b6f-81a4-f67b3334a73e\"\/>" $FILE
+        sed -i "/vipjam_fused/d" -- "$FILE"
+        sed -i "/vipjam\" path=\"libvipjam/d" -- "$FILE"
+        if ! grep -q 'library name="vipjam"' -- "$FILE"; then
+          sed -i "/<libraries>/ a\        <library name=\"vipjam\" path=\"libvipjam.so\"\/>" -- "$FILE"
+        fi
+        if ! grep -q 'effect name="vipjam_fused"' -- "$FILE"; then
+          sed -i "/<effects>/ a\        <effect name=\"vipjam_fused\" library=\"vipjam\" uuid=\"90380da3-8536-4744-a6a3-5731970e640f\"\/>" -- "$FILE"
+        fi
         ;;
   esac
 done
@@ -79,9 +83,11 @@ fi
 
 if [ "$BOOTMODE" = true ] && [ -f "$MODPATH/vipjam-app.apk" ]; then
   echo "Installing VipJam app..."
-  pm install -r "$MODPATH/vipjam-app.apk" >&2 \
-    || echo "app install skipped (install the APK manually)"
-  rm -f "$MODPATH/vipjam-app.apk"
+  if pm install -r "$MODPATH/vipjam-app.apk" >&2; then
+    rm -f "$MODPATH/vipjam-app.apk"
+  else
+    echo "app install FAILED — APK kept at $MODPATH/vipjam-app.apk, install manually"
+  fi
 else
   echo "app install skipped (recovery mode or no APK bundled)"
 fi

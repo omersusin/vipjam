@@ -110,10 +110,10 @@ class VipJamService : Service() {
                 val ok = rootMirrorOk ?: RootShell.hasSu().also { rootMirrorOk = it }
                 if (!ok) return@collect
                 val master = snap[VipJamPrefs.MASTER_ENABLE] ?: false
-                val profile = snap[VipJamPrefs.ACTIVE_PROFILE].orEmpty()
+                val profile = snap[VipJamPrefs.ACTIVE_PROFILE].orEmpty().takeIf { it in VipJamPrefs.Profiles.ALL }.orEmpty()
                 RootShell.capture("setprop persist.vipjam.master ${if (master) 1 else 0}", 5_000)
                 if (profile.isNotBlank()) {
-                    RootShell.capture("setprop persist.vipjam.profile $profile", 5_000)
+                    RootShell.capture("setprop persist.vipjam.profile '$profile'", 5_000)
                 }
             }
         }
@@ -399,6 +399,7 @@ class VipJamService : Service() {
             when (device.type) {
                 AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
                 AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> VipJamPrefs.Profiles.BLUETOOTH
+                AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> VipJamPrefs.Profiles.SPEAKER
                 else -> VipJamPrefs.Profiles.HEADSET
             }
         } catch (_: Exception) {
