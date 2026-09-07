@@ -209,7 +209,7 @@ class KernelStore(private val context: Context) {
             .replace(Regex("[^A-Za-z0-9._-]"), "_").takeLast(64).ifBlank { "kernel" }
         val fileName = "$sha8-$safe"
         dir().resolve(fileName).writeBytes(bytes)
-        StagedKernel(fileName, displayName.substringAfterLast('/').take(128), kind, bytes.size.toLong())
+        return StagedKernel(fileName, displayName.substringAfterLast('/').take(128), kind, bytes.size.toLong())
     }
 
     fun list(): List<StagedKernel> = runCatching {
