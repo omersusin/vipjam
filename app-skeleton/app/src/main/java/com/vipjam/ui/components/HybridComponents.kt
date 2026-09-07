@@ -33,7 +33,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.vipjam.dsp.VipJamDispatcher
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun EffectGlyph(group: String, tint: Color, modifier: Modifier = Modifier) {
@@ -117,7 +118,7 @@ fun HybridSliderRow(
         )
     }
     if (dialogOpen) {
-        var text by remember { mutableStateOf(valueText(draft).filter { it.isDigit() || it == '.' || it == '-' }) }
+        var text by remember(draft) { mutableStateOf(valueText(draft).filter { it.isDigit() || it == '.' || it == '-' }) }
         var error by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { dialogOpen = false },
@@ -179,12 +180,13 @@ fun DriverStatusDialog(onDismiss: () -> Unit) {
         )
     }
     var probing by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            status = runDriverStatus(context.getSystemService(AudioManager::class.java))
-            probing = false
-            delay(2000L)
+    var refreshTick by remember { mutableStateOf(0) }
+    LaunchedEffect(refreshTick) {
+        status = withContext(Dispatchers.IO) {
+            runCatching { runDriverStatus(context.getSystemService(AudioManager::class.java)) }
+                .getOrNull() ?: status.copy(streaming = "probe failed")
         }
+        probing = false
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -203,7 +205,13 @@ fun DriverStatusDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { probing = true; refreshTick++ },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) { Text("Refresh") }
+                TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close") }
+            }
         }
     )
 }

@@ -8,6 +8,7 @@
 // DSP + SHM constants below ARE real: they reuse VipJamShm.h/VipJamParams.h.
 
 #include <cstdint>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -144,7 +145,9 @@ private:
             }
         }
         if (bulk_) {
-            for (uint32_t region = 0; region < 2; ++region) {
+            static const uint32_t kRegions[] = {0, VIPJAM_SHM_BULK_REGION};
+            for (uint32_t r = 0; r < 2; ++r) {
+                uint32_t region = kRegions[r];
                 uint32_t cmd = 0, size = 0;
                 const void* data = nullptr;
                 if (vipjam_shm_bulk_read(bulk_, bulkLen_, region, &cmd, &data,
@@ -259,7 +262,7 @@ public:
                 chain_.reset();
                 return 0;
             case aidl_stub::CommandId::SET_VOLUME_STEREO:
-                return 0;  // TODO: route stereo volume pair when IDL adds args
+                return -95;  // stub has no volume args; refuse, don't fake success
             default:
                 return -95;  // EX_UNSUPPORTED_OPERATION placeholder
         }
@@ -285,6 +288,7 @@ public:
         poller_.poll(chain_, chain_.samplingRate());
         if (!chain_.isMasterEnabled() || (stereo.size() & 1u)) return;
         chain_.process(stereo);
+        processedFrames_ += (uint64_t)(stereo.size() / 2);
     }
 
     static const char* typeUuid() { return kVipJamAidlTypeUuid; }
@@ -295,7 +299,10 @@ private:
         chain_.setMasterEnabled(dp.enabled);
         if (!dp.channels.empty()) {
             const auto& c = dp.channels[0];
-            chain_.setLimiter(c.thresholdDb / 100.0f);
+            // thresholdDb is dB (<=0); setLimiter takes linear 0..1 gate.
+            float gate = powf(10.0f, c.thresholdDb / 20.0f);
+            if (!(gate >= 0.01f && gate <= 1.0f)) gate = 1.0f;
+            chain_.setLimiter(gate);
             (void)c;
         }
     }

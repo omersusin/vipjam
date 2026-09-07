@@ -891,6 +891,13 @@ fun HybridChainSection(
                             onToggle = { flipGroup(group, it) },
                             enabled = enableId != null
                         )
+                        if (enableId == null) {
+                            Text(
+                                "Stored in preset — no live switch yet",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         StripChevron(expanded = isOpen)
                     }
                     AnimatedVisibility(

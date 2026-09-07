@@ -162,8 +162,15 @@ public:
                 float v = work_[i] * 32768.0f;
                 if (v > 32767.0f) v = 32767.0f;
                 else if (v < -32768.0f) v = -32768.0f;
-                int16_t s = (int16_t)v;
-                out[i] = accumulate ? out[i] + s : s;
+                int32_t s = (int32_t)v;
+                if (accumulate) {
+                    int32_t acc = (int32_t)out[i] + s;
+                    if (acc > 32767) acc = 32767;
+                    else if (acc < -32768) acc = -32768;
+                    out[i] = (int16_t)acc;
+                } else {
+                    out[i] = (int16_t)s;
+                }
             }
         } else if (fmt == AUDIO_FORMAT_PCM_32_BIT) {
             int32_t *out = outBuffer->s32;
@@ -171,8 +178,15 @@ public:
                 double v = (double)work_[i] * 2147483648.0;
                 if (v > 2147483647.0) v = 2147483647.0;
                 else if (v < -2147483648.0) v = -2147483648.0;
-                int32_t s = (int32_t)v;
-                out[i] = accumulate ? out[i] + s : s;
+                int64_t s = (int64_t)v;
+                if (accumulate) {
+                    int64_t acc = (int64_t)out[i] + s;
+                    if (acc > 2147483647LL) acc = 2147483647LL;
+                    else if (acc < -2147483648LL) acc = -2147483648LL;
+                    out[i] = (int32_t)acc;
+                } else {
+                    out[i] = (int32_t)s;
+                }
             }
         } else {
             float *out = outBuffer->f32;

@@ -37,10 +37,11 @@ fun DebouncedSliderRow(
     enabled: Boolean = true,
     steps: Int = 0
 ) {
-    var draft by remember { mutableStateOf(value) }
+    var draft by remember(value) { mutableStateOf(value) }
+    var isDragging by remember { mutableStateOf(false) }
     val latestChange by rememberUpdatedState(onValueChange)
     LaunchedEffect(value) {
-        draft = value
+        if (!isDragging) draft = value
     }
     LaunchedEffect(draft, debounceMs) {
         if (draft != value) {
@@ -70,7 +71,8 @@ fun DebouncedSliderRow(
         }
         Slider(
             value = coerced,
-            onValueChange = { draft = it },
+            onValueChange = { isDragging = true; draft = it },
+            onValueChangeFinished = { isDragging = false },
             modifier = Modifier.semantics { this.contentDescription = label },
             enabled = enabled,
             valueRange = valueRange,

@@ -87,6 +87,14 @@ unsigned int vj_viper_kernel_id(vj_viper *v) { return v ? v->lastId : 0; }
 void vj_viper_kernel_prepare(vj_viper *v, unsigned int totalFloats,
                              unsigned int channels) {
     if (!v) return;
+    if (totalFloats == 0 && channels == 0) {
+        v->pendingKernel.clear();
+        v->pendingTotal = 0;
+        v->pendingChannels = 0;
+        v->lastCrc = 0;
+        v->lastId = 0;
+        return;
+    }
     if (totalFloats == 0 || totalFloats > 4194304) return;
     if (channels != 1 && channels != 2) return;
     v->pendingKernel.clear();
@@ -164,7 +172,9 @@ void vj_viper_kernel_commit(vj_viper *v, unsigned int totalFloats,
 }
 
 static float vj_clamp(float v, float lo, float hi) {
-    return v < lo ? lo : (v > hi ? hi : v);
+    if (!(v >= lo)) return lo;
+    if (!(v <= hi)) return hi;
+    return v;
 }
 
 static float vj_clamp_finite(float v, float lo, float hi) {
@@ -224,5 +234,6 @@ void vj_viper_set_fet(vj_viper *v, int param, float value) {
 void vj_viper_set_analogx(vj_viper *v, int mode) {
     if (!v) return;
     if (mode < 0) mode = 0;
+    if (mode > 3) mode = 3;
     v->engine.analogX.SetProcessingModel(mode);
 }

@@ -93,9 +93,9 @@ fun LiveProgTab(snackbar: SnackbarHostState) {
         }
         try {
             VipJamService.dispatchScript(context, text)
-            stdout = "sent \"$label\" (${text.length} chars) at ${timeOf(System.currentTimeMillis())}: driver ack pending"
+            stdout = "sent \"$label\" (${text.length} chars) at ${timeOf(System.currentTimeMillis())}: no ack channel — verify applied state in Status tab"
             stderr = ""
-            queue = listOf(QueuedRun(label, System.currentTimeMillis(), "sent: awaiting driver ack")) + queue
+            queue = listOf(QueuedRun(label, System.currentTimeMillis(), "sent (unacked — check Status)")) + queue
         } catch (e: Exception) {
             stdout = ""
             stderr = "send failed: ${e.message}"

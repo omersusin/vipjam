@@ -179,8 +179,10 @@ int VipJamChain::setFusedParam(int32_t id, float v0, float v1, float v2) {
         return 0;
     }
     if (id == 65577) {
-        vj_viper_set_bass(static_cast<vj_viper *>(viper_), 0, v0 / 100.0f);
-        setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+        float g = v0 / 100.0f;
+        if (!(g >= 0.0f && g <= 10.0f)) g = 0.0f;
+        vj_viper_set_bass(static_cast<vj_viper *>(viper_), 0, g);
+        setStageEnabled(VJ_STAGE_VIPER_BASS, v0 != 0.0f);
         return 0;
     }
     vj_stage_t stage = enableIdToStage(id);
@@ -199,27 +201,37 @@ int VipJamChain::setFusedParam(int32_t id, float v0, float v1, float v2) {
         setStageEnabled(VJ_STAGE_LIMITER, true);
         return 0;
     case VIPJAM_BASS:
+        if (!(v0 >= -100.0f && v0 <= 1000.0f)) return -1;
+        if (!(v1 >= 0.0f && v1 <= 5.0f)) return -1;
         vj_viper_set_bass(viper, (int)v1, v0);
-        setStageEnabled(VJ_STAGE_VIPER_BASS, true);
+        setStageEnabled(VJ_STAGE_VIPER_BASS, v0 != 0.0f);
         return 0;
     case VIPJAM_EQ:
-        if (v0 < 0.0f) return -1;
+        if (!(v0 >= 0.0f && v0 <= 30.0f)) return -1;
+        if (!(v1 >= -12.0f && v1 <= 12.0f)) return -1;
         vj_viper_set_eq_band(viper, (unsigned int)v0, v1);
         setStageEnabled(VJ_STAGE_VIPER_IIR, true);
         return 0;
     case VIPJAM_CLARITY_SPECEX:
+        if (!(v0 >= 0.0f && v0 <= 450.0f)) return -1;
+        if (!(v1 >= 0.0f && v1 <= 5.0f)) return -1;
         vj_viper_set_clarity(viper, (int)v1, v0);
         setStageEnabled(VJ_STAGE_VIPER_CLARITY, true);
         return 0;
     case VIPJAM_REVERB:
+        if (!(v0 >= 0.0f && v0 <= 100.0f) || !(v1 >= 0.0f && v1 <= 100.0f) ||
+            !(v2 >= 0.0f && v2 <= 100.0f))
+            return -1;
         vj_viper_set_reverb3(viper, v0, v1, v2);
         setStageEnabled(VJ_STAGE_VIPER_REVERB, true);
         return 0;
     case VIPJAM_XFEED:
+        if (!(v0 >= 0.0f && v0 <= 5.0f)) return -1;
         vj_james_set_xfeed(static_cast<vj_james_t *>(jdsp_), (int)v0);
         setStageEnabled(VJ_STAGE_JAMES_XFEED, true);
         return 0;
     case VIPJAM_TUBE:
+        if (!(v0 >= -3.0 && v0 <= 12.0)) return -1;
         vj_james_set_tube(static_cast<vj_james_t *>(jdsp_), (double)v0);
         setStageEnabled(VJ_STAGE_JAMES_TUBE, true);
         return 0;
@@ -264,6 +276,7 @@ void VipJamChain::reset() {
     limiterGate_ = 0.999999f;
     loudness_.reset();
     vj_viper_reset(static_cast<vj_viper *>(viper_));
+    vj_viper_kernel_prepare(static_cast<vj_viper *>(viper_), 0, 0);
     for (int s = 0; s < VJ_STAGE_COUNT; s++)
         if (enabled_[s]) setStageEnabled(static_cast<vj_stage_t>(s), true);
 }

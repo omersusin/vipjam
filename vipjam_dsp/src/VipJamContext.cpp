@@ -46,7 +46,9 @@ static int32_t vipjam_handle_set_param(vipjam_context_t *ctx,
     } else {
         return VIPJAM_EINVAL;
     }
-    return ctx->chain.setFusedParam(fused, v0, v1, v2);
+    // Pass the RAW id: setFusedParam does enableId + shim translation itself.
+    // (Passing a pre-fused id would translate twice and fail.)
+    return ctx->chain.setFusedParam(id, v0, v1, v2) == 0 ? VIPJAM_OK : VIPJAM_EINVAL;
 }
 
 static int32_t vipjam_handle_get_param(vipjam_context_t *ctx,
@@ -62,10 +64,12 @@ static int32_t vipjam_handle_get_param(vipjam_context_t *ctx,
     reply->status = 0;
     char *val = reply->data + vj_padded_psize(req->psize);
     switch (id) {
-    case VJ_GET_ENABLED:
+    case VJ_GET_ENABLED: {
         reply->vsize = sizeof(int32_t);
-        memcpy(val, &ctx->enabled, sizeof(int32_t));
+        int32_t en = ctx->enabled ? 1 : 0;
+        memcpy(val, &en, sizeof(int32_t));
         break;
+    }
     case VJ_GET_SAMPLING_RATE: {
         int32_t sr = static_cast<int32_t>(ctx->chain.samplingRate());
         reply->vsize = sizeof(int32_t);
@@ -83,6 +87,12 @@ int32_t vipjam_context_command(vipjam_context_t *ctx, uint32_t cmd,
                                uint32_t cmdSize, void *cmdData,
                                uint32_t *replySize, void *replyData) {
     if (!ctx || !replySize) return VIPJAM_EINVAL;
+    if (cmd == EFFECT_CMD_SET_PARAM || cmd == EFFECT_CMD_GET_PARAM) {
+        if (!cmdData || cmdSize < sizeof(effect_param_t)) return VIPJAM_EINVAL;
+        const effect_param_t *p = static_cast<const effect_param_t *>(cmdData);
+        uint32_t need = sizeof(effect_param_t) + vj_padded_psize(p->psize) + p->vsize;
+        if (cmdSize < need) return VIPJAM_EINVAL;
+    }
     switch (cmd) {
     case EFFECT_CMD_INIT:
         if (*replySize < sizeof(int)) return VIPJAM_EINVAL;

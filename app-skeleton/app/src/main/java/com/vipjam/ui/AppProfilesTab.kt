@@ -334,7 +334,7 @@ fun AppProfilesTab(snackbar: SnackbarHostState) {
         }
         itemsIndexed(shown, key = { _, it -> it.packageName }) { index, app ->
             StaggeredAppProfile(index, reducedMotion) {
-                var expanded by remember { mutableStateOf(false) }
+                var expanded by remember(app.packageName) { mutableStateOf(false) }
                 val assigned = appMap[app.packageName]
                 val isDisabled = assigned == null && parked.containsKey(app.packageName)
                 Box {

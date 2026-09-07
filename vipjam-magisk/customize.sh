@@ -48,8 +48,7 @@ unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' 'vipjam-app.apk' -d $MODPA
 # VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
 . "$MODPATH/common/install.sh"
 LIBPATCH="$(cat "$MODPATH/libpatch.txt" 2>/dev/null)"
-CFGS="$(find /odm /system /vendor -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) 2>/dev/null)"
-for FILE in ${CFGS}; do
+find /odm /system /vendor -type f \( -name "*audio_effects*.conf" -o -name "*audio_effects*.xml" \) 2>/dev/null | while IFS= read -r FILE; do
   [ -f "$FILE" ] || continue
   case "$FILE" in
     *.conf)

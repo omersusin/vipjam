@@ -1,8 +1,14 @@
 #include "james_bridge.h"
 #include "VipJamStages.h"
 #include "jdsp/jdsp_header.h"
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
+
+static float vj_finite_clamp(float v, float lo, float hi, float dflt) {
+    if (!(v >= lo && v <= hi)) return dflt;
+    return v;
+}
 
 struct vj_james {
     JamesDSPLib lib;
@@ -199,23 +205,25 @@ void vj_james_set_eq15(vj_james_t *j, const double *freqHz,
     if (!j || !freqHz || !gainDb) return;
     double f[15], g[15];
     for (int i = 0; i < 15; i++) {
-        f[i] = freqHz[i] <= 0 ? 20.0 : freqHz[i];
-        g[i] = gainDb[i] < -12.0 ? -12.0 : (gainDb[i] > 12.0 ? 12.0 : gainDb[i]);
+        double fi = freqHz[i];
+        double gi = gainDb[i];
+        if (!(fi > 0.0)) fi = 20.0;
+        if (!(gi >= -12.0 && gi <= 12.0)) gi = 0.0;
+        f[i] = fi;
+        g[i] = gi;
     }
     MultimodalEqualizerAxisInterpolation(&j->lib, interp ? 1 : 0, 5, f, g);
 }
 
 void vj_james_set_bass(vj_james_t *j, float maxGainDb) {
     if (!j) return;
-    if (maxGainDb < 0) maxGainDb = 0;
-    if (maxGainDb > 15) maxGainDb = 15;
+    maxGainDb = vj_finite_clamp(maxGainDb, 0.0f, 15.0f, 0.0f);
     BassBoostSetParam(&j->lib, maxGainDb);
 }
 
 void vj_james_set_comp(vj_james_t *j, float tc, int gran, int tfres) {
     if (!j) return;
-    if (tc < 0.06f) tc = 0.06f;
-    if (tc > 0.3f) tc = 0.3f;
+    tc = vj_finite_clamp(tc, 0.06f, 0.3f, 0.06f);
     if (gran < 0) gran = 0;
     if (gran > 4) gran = 4;
     if (tfres < 0) tfres = 0;
@@ -225,29 +233,25 @@ void vj_james_set_comp(vj_james_t *j, float tc, int gran, int tfres) {
 
 void vj_james_set_reverb(vj_james_t *j, int preset) {
     if (!j) return;
-    if (preset < 0) preset = 0;
-    if (preset > 18) preset = 18;
+    if (preset < 0 || preset > 18) return;
     Reverb_SetParam(&j->lib, preset);
 }
 
 void vj_james_set_tube(vj_james_t *j, double dbGain) {
     if (!j) return;
-    if (dbGain < -3.0) dbGain = -3.0;
-    if (dbGain > 12.0) dbGain = 12.0;
+    if (!(dbGain >= -3.0 && dbGain <= 12.0)) return;
     VacuumTubeSetGain(&j->lib, dbGain);
 }
 
 void vj_james_set_stereo(vj_james_t *j, float mix01) {
     if (!j) return;
-    if (mix01 < 0) mix01 = 0;
-    if (mix01 > 1) mix01 = 1;
+    mix01 = vj_finite_clamp(mix01, 0.0f, 1.0f, 0.0f);
     StereoEnhancementSetParam(&j->lib, mix01);
 }
 
 void vj_james_set_xfeed(vj_james_t *j, int mode) {
     if (!j) return;
-    if (mode < 0) mode = 0;
-    if (mode > 5) mode = 5;
+    if (mode < 0 || mode > 5) return;
     CrossfeedChangeMode(&j->lib, mode);
 }
 

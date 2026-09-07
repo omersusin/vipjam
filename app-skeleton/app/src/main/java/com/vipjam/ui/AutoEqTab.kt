@@ -40,6 +40,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.vipjam.autoeq.AutoEq
 import com.vipjam.autoeq.AutoEqApi
@@ -119,7 +121,8 @@ private fun AutoEqPreviewCurve(values: List<Double>) {
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp),
+            .height(180.dp)
+            .semantics { contentDescription = "AutoEq frequency response preview" },
     ) {
         val w = size.width
         val h = size.height

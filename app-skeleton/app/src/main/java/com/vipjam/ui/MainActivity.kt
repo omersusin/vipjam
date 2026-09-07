@@ -59,6 +59,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -162,7 +163,7 @@ fun VipJamApp() {
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     var detail by rememberSaveable { mutableStateOf<Detail?>(null) }
-    var systemDetail by remember { mutableStateOf<SystemDetail?>(null) }
+    var systemDetail by rememberSaveable { mutableStateOf<SystemDetail?>(null) }
     var labTool by rememberSaveable { mutableStateOf(LabTool.TestTone) }
     var menuOpen by remember { mutableStateOf(false) }
     var statusOpen by remember { mutableStateOf(false) }
@@ -487,20 +488,10 @@ private fun LabScreen(
             }
         }
         Box(modifier = Modifier.fillMaxSize()) {
-            LabTool.entries.forEach { entry ->
-                Box(
-                    modifier = if (tool == entry) {
-                        Modifier.fillMaxSize()
-                    } else {
-                        Modifier.clearAndSetSemantics {}.heightIn(max = 1.dp)
-                    }
-                ) {
-                    when (entry) {
-                        LabTool.TestTone -> TestToneTab(snackbar)
-                        LabTool.LiveProg -> LiveProgTab(snackbar)
-                        LabTool.AutoEq -> AutoEqTab(snackbar)
-                    }
-                }
+            when (tool) {
+                LabTool.TestTone -> TestToneTab(snackbar)
+                LabTool.LiveProg -> LiveProgTab(snackbar)
+                LabTool.AutoEq -> AutoEqTab(snackbar)
             }
         }
     }
@@ -527,7 +518,9 @@ private fun SystemScreen(
                     headlineContent = { Text(entry.label) },
                     supportingContent = { Text(entry.blurb) },
                     trailingContent = { Text(">") },
-                    modifier = Modifier.clickable { onDetailChange(entry) }
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .clickable(role = Role.Button) { onDetailChange(entry) }
                 )
                 HorizontalDivider()
             }
@@ -535,7 +528,9 @@ private fun SystemScreen(
                 headlineContent = { Text("Lab tools") },
                 supportingContent = { Text("Tone, LiveProg and AutoEq") },
                 trailingContent = { Text(">") },
-                modifier = Modifier.clickable { onOpenLab() }
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.Button) { onOpenLab() }
             )
             HorizontalDivider()
         }

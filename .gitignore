@@ -35,3 +35,11 @@ secrets/
 TEST-SIGNED.txt
 *.apk
 *.aab
+vipjam-magisk/vipjam-app.apk
+vipjam-magisk-*.zip
+vipjam_dsp/hal/libs/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.swp

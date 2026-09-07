@@ -258,7 +258,7 @@ fun ModuleTab(snackbar: SnackbarHostState) {
     if (showDialog) {
         val listState = rememberLazyListState()
         LaunchedEffect(flashLog.size) {
-            if (flashLog.isNotEmpty()) listState.animateScrollToItem(flashLog.size - 1)
+            if (flashLog.isNotEmpty()) listState.scrollToItem(flashLog.size - 1)
         }
         AlertDialog(
             onDismissRequest = { if (!flashing) showDialog = false },

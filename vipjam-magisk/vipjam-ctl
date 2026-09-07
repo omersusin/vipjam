@@ -145,6 +145,7 @@ do_diag() {
   if [ -n "$(cfg_hits)" ]; then cfg=1; else cfg=0; fi
   if driver_reachable; then drv=1; else drv=0; fi
   master="$(getprop persist.vipjam.enabled 2>/dev/null)"
+  [ -n "$master" ] || master="$(getprop persist.vipjam.master 2>/dev/null)"
   [ -n "$master" ] || master=unknown
   echo "VIPJAM_CTL_VERSION=$(ctl_version)"
   echo "HAL_SO_32=$s32"
@@ -228,7 +229,7 @@ do_param() {
 
 do_preset() {
   [ -f "$1" ] || { echo "no such file: $1"; exit 2; }
-  size="$(wc -c < "$1" 2>/dev/null)"
+  size="$(wc -c < "$1" 2>/dev/null | tr -d ' ')"
   case "$size" in ''|*[!0-9]*) echo "cannot stat: $1"; exit 2 ;; esac
   [ "$size" -gt 0 ] || { echo "empty preset: $1"; exit 2; }
   [ "$size" -gt 1048576 ] && { echo "preset too large (>1MB), binder limit"; exit 2; }

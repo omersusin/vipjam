@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.vipjam.dsp.VipJamNative
 import com.vipjam.ui.components.EmptyState
@@ -216,6 +219,9 @@ fun TestToneTab(snackbar: SnackbarHostState) {
                     onValueChange = { freq = it },
                     valueRange = 30f..4000f,
                     enabled = !playing,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = "Test tone frequency" },
                 )
             }
         }
@@ -227,6 +233,9 @@ fun TestToneTab(snackbar: SnackbarHostState) {
                     onValueChange = { gain = it },
                     valueRange = 0f..100f,
                     enabled = !playing,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = "Test tone gain" },
                 )
             }
         }
@@ -238,6 +247,9 @@ fun TestToneTab(snackbar: SnackbarHostState) {
                     onValueChange = { durationSec = it },
                     valueRange = 1f..10f,
                     enabled = !playing,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = "Test tone duration" },
                 )
             }
         }

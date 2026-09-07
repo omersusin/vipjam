@@ -604,6 +604,36 @@ def validate_v3(p):
     if isinstance(eq, dict) and isinstance(eq.get("bands"), list):
         if eq.get("bandCount") != len(eq["bands"]):
             errs.append("equalizer bandCount != len(bands)")
+        for b in eq["bands"]:
+            if isinstance(b, (int, float)) and not (-12 <= b <= 12):
+                errs.append(f"equalizer band {b} out of range (-12,12)")
+                break
+    ddc = p.get("ddc")
+    if isinstance(ddc, dict) and ddc.get("enable"):
+        for sr in ("sr44100", "sr48000"):
+            coeffs = ddc.get(sr)
+            if not isinstance(coeffs, list) or not coeffs:
+                errs.append(f"ddc enabled but {sr} missing/empty")
+            elif len(coeffs) % 5 != 0:
+                errs.append(f"ddc {sr} length % 5 != 0")
+    fs = p.get("fieldSurround")
+    if isinstance(fs, dict):
+        w = fs.get("widening")
+        if isinstance(w, (int, float)) and not (0 <= w <= 8):
+            errs.append(f"fieldSurround.widening {w} out of range (0,8)")
+        m = fs.get("midImage")
+        if isinstance(m, (int, float)) and not (0 <= m <= 10):
+            errs.append(f"fieldSurround.midImage {m} out of range (0,10)")
+    fet = p.get("fetCompressor")
+    if isinstance(fet, dict):
+        t = fet.get("threshold")
+        if isinstance(t, (int, float)) and not (-48 <= t <= 0):
+            errs.append(f"fetCompressor.threshold {t} out of range (-48,0)")
+    conv = p.get("convolver")
+    if isinstance(conv, dict):
+        cc = conv.get("crossChannel")
+        if isinstance(cc, (int, float)) and not (0 <= cc <= 100):
+            errs.append(f"convolver.crossChannel {cc} out of range (0,100)")
     return errs
 
 

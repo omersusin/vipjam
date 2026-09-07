@@ -123,6 +123,9 @@
     }
     document.getElementById("nobeCtl").hidden = on;
   }
+  function isExecErr(s) {
+    return !s || s.indexOf("exec failed:") === 0;
+  }
   async function probe() {
     if (!window.ksu || !ksu.exec) {
       hasCtl = false;
@@ -132,11 +135,24 @@
     }
     try {
       const out = await sh("command -v vipjam-ctl");
-      hasCtl = out.trim() !== "";
+      hasCtl = !isExecErr(out) && out.trim() !== "";
     } catch (e) {
       hasCtl = false;
     }
     setEnabled(hasCtl);
+  }
+  function syncFromDiag(text) {
+    const kv = {};
+    text.split("\n").forEach(line => {
+      const i = line.indexOf("=");
+      if (i > 0) kv[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    });
+    if (kv.MASTER === "1" || kv.MASTER === "0") {
+      document.getElementById("masterBtn").textContent = kv.MASTER === "1" ? "Master: ON" : "Master: OFF";
+    }
+    if (kv.PROFILE === "headset" || kv.PROFILE === "speaker" || kv.PROFILE === "bluetooth") {
+      document.getElementById("profile").value = kv.PROFILE;
+    }
   }
   async function refresh() {
     if (!hasCtl) {
@@ -145,8 +161,9 @@
     }
     const out = await sh("vipjam-ctl status-json 2>&1");
     document.getElementById("status").textContent = out || "(empty)";
-    listPresets();
-    listKernels();
+    if (!isExecErr(out)) syncFromDiag(out);
+    try { await listPresets(); } catch (e) {}
+    try { await listKernels(); } catch (e) {}
   }
   async function diag() {
     if (!hasCtl) {
@@ -160,7 +177,11 @@
     const out = await sh("vipjam-ctl list 2>/dev/null");
     const box = document.getElementById("presetList");
     box.innerHTML = "";
-    for (const path of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+    if (isExecErr(out)) { box.textContent = "(list failed)"; return; }
+    const paths = out.split("\n").map(s => s.trim()).filter(Boolean)
+      .filter(p => p.indexOf(PRESET_DIR) === 0 && p.indexOf("\n") === -1);
+    if (!paths.length) { box.textContent = "(no presets)"; return; }
+    for (const path of paths) {
       const name = path.split("/").pop();
       const div = document.createElement("div");
       div.className = "preset";
@@ -169,14 +190,18 @@
       const apply = document.createElement("button");
       apply.className = "ghost";
       apply.textContent = "Apply";
+      apply.disabled = !hasCtl;
       apply.onclick = async () => {
+        if (!hasCtl) return;
         await sh("vipjam-ctl preset " + q(path));
         refresh();
       };
       const del = document.createElement("button");
       del.className = "ghost";
       del.textContent = "Delete";
+      del.disabled = !hasCtl;
       del.onclick = async () => {
+        if (!hasCtl) return;
         await sh("rm -f " + q(path));
         listPresets();
       };
@@ -190,7 +215,11 @@
     const out = await sh("ls -1 " + q(KERNEL_DIR) + " 2>/dev/null");
     const box = document.getElementById("kernelList");
     box.innerHTML = "";
-    for (const name of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+    if (isExecErr(out)) { box.textContent = "(list failed)"; return; }
+    const names = out.split("\n").map(s => s.trim()).filter(Boolean)
+      .filter(n => n !== "." && n !== ".." && n.indexOf("/") === -1);
+    if (!names.length) { box.textContent = "(none staged)"; return; }
+    for (const name of names) {
       const div = document.createElement("div");
       div.className = "preset";
       const label = document.createElement("span");
@@ -198,7 +227,9 @@
       const del = document.createElement("button");
       del.className = "ghost";
       del.textContent = "Delete";
+      del.disabled = !hasCtl;
       del.onclick = async () => {
+        if (!hasCtl) return;
         await sh("rm -f " + q(KERNEL_DIR + "/" + name));
         listKernels();
       };
@@ -229,11 +260,12 @@
     document.getElementById("logs").textContent = out || "(empty)";
   };
   document.getElementById("resetPresetsBtn").onclick = async () => {
+    if (!confirm("Delete all downloaded presets in " + PRESET_DIR + "?")) return;
     await sh("rm -rf " + q(PRESET_DIR) + " && mkdir -p " + q(PRESET_DIR));
     listPresets();
   };
   document.getElementById("resetPropsBtn").onclick = async () => {
-    await sh("for p in persist.vipjam.master persist.vipjam.profile; do resetprop -d \"$p\" 2>/dev/null || setprop \"$p\" \"\" 2>/dev/null; done; settings delete global vipjam_cmd 2>/dev/null; settings delete global vipjam_cmd_seq 2>/dev/null; echo done");
+    await sh("for p in persist.vipjam.master persist.vipjam.enabled persist.vipjam.profile; do resetprop -d \"$p\" 2>/dev/null || resetprop --delete \"$p\" 2>/dev/null || setprop \"$p\" \"\" 2>/dev/null; done; settings delete global vipjam_cmd 2>/dev/null; settings delete global vipjam_cmd_seq 2>/dev/null; echo done");
   };
   document.getElementById("kernelBtn").onclick = async () => {
     const input = document.getElementById("kernelFile");
@@ -251,9 +283,14 @@
       bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
     }
     const b64 = btoa(bin);
-    await sh("mkdir -p " + q(KERNEL_DIR) + " && printf '%s' " + q(b64) + " | base64 -d > " + q(KERNEL_DIR + "/" + safe));
+    if (b64.length > 1400000) { toast("kernelToast", "encoded file too large for shell staging — use the app instead"); return; }
+    const rc = await sh("mkdir -p " + q(KERNEL_DIR) + " && printf '%s' " + q(b64) + " | base64 -d > " + q(KERNEL_DIR + "/" + safe) + " && ls -l " + q(KERNEL_DIR + "/" + safe));
     input.value = "";
-    toast("kernelToast", "staged " + safe);
+    if (isExecErr(rc) || rc.indexOf(safe) === -1) {
+      toast("kernelToast", "stage failed (shell limit?) — use the app instead");
+    } else {
+      toast("kernelToast", "staged " + safe);
+    }
     listKernels();
   };
   document.getElementById("masterBtn").onclick = async () => {
@@ -289,8 +326,14 @@
       }
     }
     const name = "link-" + Date.now() + ".v3.json";
-    await sh("mkdir -p " + q(PRESET_DIR) + " && printf '%s' " + q(text) + " > " + q(PRESET_DIR + "/" + name));
+    if (text.length > 700000) { toast("presetToast", "preset too large for shell save (>~700KB)"); return; }
+    const rc = await sh("mkdir -p " + q(PRESET_DIR) + " && printf '%s' " + q(text) + " > " + q(PRESET_DIR + "/" + name) + " && echo saved");
     document.getElementById("presetLink").value = "";
+    if (isExecErr(rc)) {
+      toast("presetToast", "save failed");
+    } else {
+      toast("presetToast", "saved " + name);
+    }
     listPresets();
   };
   setEnabled(false);

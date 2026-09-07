@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
@@ -128,6 +130,7 @@ fun ConsoleEqCurve(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(canvasHeight)
+                .semantics { contentDescription = "Equalizer curve editor. Use the band sliders below to adjust." }
                 .pointerInput(bands.size, padLeftPx, padRightPx, grabSlopPx) {
                     detectTapGestures { offset ->
                         val idx = pickBand(offset.x, size.width.toFloat())
