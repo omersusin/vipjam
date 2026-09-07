@@ -45,7 +45,7 @@ unzip -qjo "$ZIPFILE" 'common/functions.sh' -d $TMPDIR >&2
 . $TMPDIR/functions.sh
 # KSU-Next/Magisk only keep whitelisted paths in MODPATH; ensure our
 # payload (install script + driver .so files + helpers) is really there.
-unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' -d $MODPATH >&2
+unzip -qo "$ZIPFILE" 'common/*' 'vipjam-ctl' 'aml.sh' 'vipjam-app.apk' -d $MODPATH >&2
 # VipJam driver install: copies libvipjam.so + vipjam-ctl, mirrors configs.
 . $MODPATH/common/install.sh
 LIBPATCH=`cat $MODPATH/libpatch.txt`
@@ -75,4 +75,13 @@ if [ -d "/odm/etc/" ] && [ -n "$MOD_SRC" ]; then
   echo "Binding audio_effects.xml to odm partition..."
   mount -o bind "$MOD_SRC" /odm/etc/audio_effects.xml 2>/dev/null \
     || echo "odm bind skipped (non-fatal)"
+fi
+
+if [ "$BOOTMODE" = true ] && [ -f "$MODPATH/vipjam-app.apk" ]; then
+  echo "Installing VipJam app..."
+  pm install -r "$MODPATH/vipjam-app.apk" >&2 \
+    || echo "app install skipped (install the APK manually)"
+  rm -f "$MODPATH/vipjam-app.apk"
+else
+  echo "app install skipped (recovery mode or no APK bundled)"
 fi
