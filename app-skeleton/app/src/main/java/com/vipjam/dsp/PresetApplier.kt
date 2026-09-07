@@ -200,7 +200,7 @@ object PresetApplier {
                 continue
             }
             if (key == JAMES_KEY) {
-                Log.d(TAG, "apply: james stages routed via SHM bulk path, skipped on legacy AudioEffect")
+                Log.d(TAG, "apply: james file-backed groups (ddc/convolver) pushed by service; scalars need LiveProg tab")
                 continue
             }
             Log.w(TAG, "apply: unknown group skipped: $key")

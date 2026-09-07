@@ -31,6 +31,10 @@ import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamCommand
 import com.vipjam.dsp.VipJamCommandParser
 import com.vipjam.dsp.VipJamDispatcher
+import com.vipjam.kernel.KernelStore
+import com.vipjam.kernel.StagedKernel
+import com.vipjam.kernel.convPush
+import com.vipjam.kernel.ddcStep
 import com.vipjam.root.RootShell
 import com.vipjam.log.VipJamLog
 import com.vipjam.ui.prefs
@@ -40,6 +44,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -113,7 +118,8 @@ class VipJamService : Service() {
                 val profile = snap[VipJamPrefs.ACTIVE_PROFILE].orEmpty().takeIf { it in VipJamPrefs.Profiles.ALL }.orEmpty()
                 RootShell.capture("setprop persist.vipjam.master ${if (master) 1 else 0}", 5_000)
                 if (profile.isNotBlank()) {
-                    RootShell.capture("setprop persist.vipjam.profile '$profile'", 5_000)
+                    val safe = profile.replace("'", "'\\''")
+                    RootShell.capture("setprop persist.vipjam.profile '$safe'", 5_000)
                 }
             }
         }
@@ -716,11 +722,89 @@ class VipJamService : Service() {
                     dispatcher.enabled = masterOn
                 } catch (_: Exception) {
                 }
+                try {
+                    applyFileBackedGroups(settingsJson)
+                } catch (e: Exception) {
+                    Log.w(TAG, "applyPreset file-backed groups failed", e)
+                }
                 applied
             }
             if (!ok) Log.w(TAG, "applyPreset: one or more params rejected by driver")
             if (!ok) VipJamLog.w(TAG, "preset rejected") else VipJamLog.i(TAG, "preset applied master=$masterOn")
         } catch (_: Exception) {
+        }
+    }
+
+    private fun applyFileBackedGroups(settingsJson: String) {
+        val obj = runCatching { JSONObject(settingsJson) }.getOrNull() ?: return
+        val kernels = KernelStore(this)
+        val staged = runCatching { kernels.list() }.getOrDefault(emptyList())
+        if (staged.isEmpty()) return
+        fun findRef(ref: String): StagedKernel? {
+            if (ref.isBlank()) return null
+            val base = ref.substringAfterLast('/').substringAfterLast('\\')
+            return staged.firstOrNull {
+                it.fileName == ref || it.displayName == ref ||
+                    it.displayName == base || it.fileName.endsWith("-$base")
+            }
+        }
+        val deviceRate = runCatching {
+            getSystemService(AudioManager::class.java)
+                ?.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull()
+        }.getOrNull() ?: 48000
+        fun pushConvolver(ref: String) {
+            val item = findRef(ref) ?: run {
+                Log.w(TAG, "applyPreset: kernel not staged, skipping convolver: $ref")
+                return
+            }
+            val pcm = runCatching { kernels.readKernelPcm(item.fileName).getOrThrow() }.getOrNull() ?: run {
+                Log.w(TAG, "applyPreset: unreadable kernel: $ref")
+                return
+            }
+            val plan = runCatching {
+                convPush(pcm.samples, pcm.channels, pcm.sampleRate, deviceRate).getOrThrow()
+            }.getOrNull() ?: run {
+                Log.w(TAG, "applyPreset: kernel plan failed: $ref")
+                return
+            }
+            if (plan.rateMismatch) {
+                Log.w(TAG, "applyPreset: kernel rate ${plan.sampleRate} vs device $deviceRate, not resampled")
+            }
+            for (s in plan.steps) dispatchBulkNow(s.id, s.values, s.v0, s.v1, s.v2)
+        }
+        fun pushDdc(ref: String) {
+            val item = findRef(ref) ?: run {
+                Log.w(TAG, "applyPreset: DDC not staged, skipping: $ref")
+                return
+            }
+            val text = runCatching { kernels.readVdcText(item.fileName).getOrThrow() }.getOrNull() ?: run {
+                Log.w(TAG, "applyPreset: unreadable DDC: $ref")
+                return
+            }
+            val step = runCatching { ddcStep(text).getOrThrow() }.getOrNull() ?: run {
+                Log.w(TAG, "applyPreset: DDC plan failed: $ref")
+                return
+            }
+            dispatchBulkNow(step.id, step.values, step.v0, step.v1, step.v2)
+        }
+        runCatching { obj.optJSONObject("convolver") }.getOrNull()?.let { g ->
+            if (g.optBoolean("enable")) pushConvolver(g.optString("kernelFile"))
+        }
+        runCatching { obj.optJSONObject("ddc") }.getOrNull()?.let { g ->
+            if (g.optBoolean("enable")) pushDdc(g.optString("device"))
+        }
+        runCatching { obj.optJSONObject("james") }.getOrNull()?.let { j ->
+            runCatching { j.optJSONObject("convolver") }.getOrNull()?.let { g ->
+                if (g.optBoolean("enable")) pushConvolver(g.optString("kernelFile"))
+            }
+            runCatching { j.optJSONObject("ddc") }.getOrNull()?.let { g ->
+                if (g.optBoolean("enable")) pushDdc(g.optString("device"))
+            }
+            runCatching { j.optJSONObject("liveprog") }.getOrNull()?.let { g ->
+                if (g.optBoolean("enable")) {
+                    Log.w(TAG, "applyPreset: james liveprog runs from the LiveProg tab, not presets")
+                }
+            }
         }
     }
 
@@ -804,7 +888,6 @@ class VipJamService : Service() {
         )
 
         private val KNOWN_PARAM_IDS = SINGLE_INT_PARAMS + setOf(
-            VipJamDispatcher.F_BASS,
             VipJamDispatcher.F_EQ,
             VipJamDispatcher.F_REVERB,
             VipJamDispatcher.F_CLARITY,

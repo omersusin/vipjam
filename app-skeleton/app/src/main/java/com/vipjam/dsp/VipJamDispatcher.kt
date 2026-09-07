@@ -201,7 +201,6 @@ class VipJamDispatcher(private val sessionId: Int) : ParamSink {
         const val P_DIFF_ENABLE = 65557
         const val P_SPK_ENABLE = 65603
 
-        const val F_BASS = 0x20040
         const val F_EQ = 0x20050
         const val F_REVERB = 0x20090
         const val F_CLARITY = 0x200B0
