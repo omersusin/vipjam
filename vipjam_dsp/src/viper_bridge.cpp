@@ -70,9 +70,14 @@ void vj_viper_process(vj_viper *v, std::vector<float> &interleavedStereo,
 void vj_viper_set_ddc(vj_viper *v, const float *c44, unsigned int n44,
                       const float *c48, unsigned int n48) {
     if (!v || !c44 || !c48 || n44 == 0 || n48 == 0) return;
-    if (n44 > 1024 || n48 > 1024 || n44 != n48) return;
-    std::vector<float> a44(c44, c44 + n44), a48(c48, c48 + n48);
-    v->engine.viperDdc.SetCoeffs(n44, a44.data(), a48.data());
+    if (n44 > 1024 || n48 > 1024) return;
+    // Engine reads one shared count from both arrays: use the common
+    // prefix (whole biquads) so asymmetric 44.1k/48k files still load.
+    unsigned int n = n44 < n48 ? n44 : n48;
+    n -= n % 5;
+    if (n == 0) return;
+    std::vector<float> a44(c44, c44 + n), a48(c48, c48 + n);
+    v->engine.viperDdc.SetCoeffs(n, a44.data(), a48.data());
 }
 
 void vj_viper_set_kernel_mono(vj_viper *v, const float *frames,

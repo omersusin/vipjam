@@ -53,6 +53,12 @@ void vj_james_set_rate(vj_james_t *j, uint32_t sampleRate) {
     d->compForceRefresh = 1;
     CompressorEnable(d, d->compEnabled);
     StereoEnhancementRefresh(d);
+    // Rate-dependent stages without a ForceRefresh flag: re-enable with
+    // current state so coeffects rebuild at the new rate.
+    if (d->tubeEnabled) VacuumTubeEnable(d);
+    if (d->convolverEnabled) Convolver1DEnable(d);
+    if (d->liveprogEnabled) LiveProgEnable(d);
+    if (d->reverbEnabled) ReverbEnable(d);
 }
 
 void vj_james_set_stage(vj_james_t *j, int stage, int enabled) {

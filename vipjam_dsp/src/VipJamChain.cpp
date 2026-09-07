@@ -147,8 +147,8 @@ void VipJamChain::setMasterEnabled(bool on) {
 }
 
 void VipJamChain::setLimiter(float threshold01) {
-    if (threshold01 < 0.01f) threshold01 = 0.01f;
-    if (threshold01 > 1.0f) threshold01 = 1.0f;
+    if (!(threshold01 >= 0.01f)) threshold01 = 0.01f;
+    else if (!(threshold01 <= 1.0f)) threshold01 = 1.0f;
     limiterGate_ = threshold01;
 }
 
