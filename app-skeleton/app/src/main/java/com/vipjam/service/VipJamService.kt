@@ -32,6 +32,7 @@ import com.vipjam.dsp.VipJamCommand
 import com.vipjam.dsp.VipJamCommandParser
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.root.RootShell
+import com.vipjam.log.VipJamLog
 import com.vipjam.ui.prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +84,7 @@ class VipJamService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        VipJamLog.init(cacheDir)
         ensureChannel()
         val notification = buildNotification()
         if (Build.VERSION.SDK_INT >= 34) {
@@ -501,6 +503,7 @@ class VipJamService : Service() {
 
     private fun applyMaster(on: Boolean) {
         scope.launch {
+            VipJamLog.i(TAG, "master $on")
             try {
                 val created = synchronized(driverLock) {
                     if (!dispatcher.create()) false
@@ -512,6 +515,7 @@ class VipJamService : Service() {
                 }
                 if (!created) {
                     Log.w(TAG, "applyMaster: driver unavailable")
+                    VipJamLog.w(TAG, "applyMaster: driver unavailable")
                     return@launch
                 }
                 if (on) {
@@ -549,6 +553,7 @@ class VipJamService : Service() {
 
     private fun applyProfile(profile: String) {
         scope.launch {
+            VipJamLog.i(TAG, "profile $profile")
             try {
                 if (profile !in VipJamPrefs.Profiles.ALL) {
                     Log.w(TAG, "applyProfile with unknown route skipped: $profile")
@@ -609,6 +614,7 @@ class VipJamService : Service() {
                 else dispatcher.setParam(id, v0, v1, v2)
             }
             if (!ok) Log.w(TAG, "dispatch param failed: id=$id")
+            if (!ok) VipJamLog.w(TAG, "dispatch param failed: id=$id")
         } catch (_: Exception) {
         }
     }
@@ -664,6 +670,7 @@ class VipJamService : Service() {
                 }
             }
             if (!ok) Log.w(TAG, "dispatch bulk failed: id=$id")
+            if (!ok) VipJamLog.w(TAG, "dispatch bulk failed: id=$id")
         } catch (_: Exception) {
         }
     }
@@ -682,6 +689,7 @@ class VipJamService : Service() {
                 dispatcher.sendScript(script, scriptId)
             }
             if (!ok) Log.w(TAG, "dispatch script failed: id=$scriptId")
+            if (!ok) VipJamLog.w(TAG, "dispatch script failed: id=$scriptId")
         } catch (_: Exception) {
         }
     }
@@ -710,6 +718,7 @@ class VipJamService : Service() {
                 applied
             }
             if (!ok) Log.w(TAG, "applyPreset: one or more params rejected by driver")
+            if (!ok) VipJamLog.w(TAG, "preset rejected") else VipJamLog.i(TAG, "preset applied master=$masterOn")
         } catch (_: Exception) {
         }
     }

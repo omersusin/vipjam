@@ -1,6 +1,7 @@
 package com.vipjam.ui
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -20,6 +21,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -52,11 +56,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -68,10 +74,12 @@ import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.PresetApplier
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
+import com.vipjam.log.VipJamLog
 import com.vipjam.service.VipJamService
 import com.vipjam.root.ReleaseApi
 import com.vipjam.root.ReleaseInfo
 import com.vipjam.ui.components.DriverStatusDialog
+import com.vipjam.ui.components.EmptyState
 import com.vipjam.ui.components.LoadingState
 import com.vipjam.ui.components.PowerDot
 import com.vipjam.ui.components.SectionCard
@@ -140,6 +148,7 @@ internal enum class SystemDetail(val label: String, val blurb: String) {
     Apps("App profiles", "Per-app routing rules"),
     Module("Module installer", "Root installer and updates"),
     Status("Diagnostics", "Driver, runtime and chain"),
+    Logs("Logs", "On-device file log"),
     About("About", "Version and schema")
 }
 
@@ -545,7 +554,96 @@ private fun SystemScreen(
                     SystemDetail.Apps -> AppProfilesTab(snackbar)
                     SystemDetail.Module -> ModuleTab(snackbar)
                     SystemDetail.Status -> StatusTab(store)
+                    SystemDetail.Logs -> LogsDetail()
                     SystemDetail.About -> AboutDetail()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogsDetail() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    var filter by remember { mutableStateOf(0) }
+    var lines by remember { mutableStateOf<List<String>>(emptyList()) }
+    var seq by remember { mutableStateOf(0) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(seq) {
+        lines = withContext(Dispatchers.IO) {
+            VipJamLog.init(context.cacheDir)
+            VipJamLog.readLast(500)
+        }
+    }
+    val shown = remember(lines, filter) {
+        when (filter) {
+            1 -> lines.filter { it.contains(" W/") || it.contains(" E/") }
+            2 -> lines.filter { it.contains(" E/") }
+            else -> lines
+        }
+    }
+    LaunchedEffect(shown.size) {
+        if (shown.isNotEmpty()) listState.scrollToItem(shown.size - 1)
+    }
+    fun share(text: String) {
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, "VipJam log")
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        context.startActivity(Intent.createChooser(send, "Share log"))
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        SectionCard(title = "Log", subtitle = "vipjam.log in cacheDir") {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                listOf("All", "Warn", "Error").forEachIndexed { index, label ->
+                    SegmentedButton(
+                        selected = filter == index,
+                        onClick = { filter = index },
+                        shape = SegmentedButtonDefaults.itemShape(index, 3),
+                        label = { Text(label) }
+                    )
+                }
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = {
+                    clipboard.setText(AnnotatedString(shown.joinToString("\n")))
+                }) { Text("Copy") }
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { VipJamLog.clear() }
+                        seq++
+                    }
+                }) { Text("Clear") }
+                Button(onClick = { share(shown.joinToString("\n")) }) { Text("Share") }
+            }
+        }
+        if (shown.isEmpty()) {
+            EmptyState(title = "No log lines", body = "Use the app and return here; warnings and errors appear first under filters.")
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                items(shown) {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
