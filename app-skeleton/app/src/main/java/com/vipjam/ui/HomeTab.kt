@@ -110,7 +110,7 @@ fun HomeTab(
                                     .semantics {
                                         contentDescription = "Output $route"
                                         role = Role.Tab
-                                        selected = selected
+                                        this.selected = selected
                                     }
                             ) {
                                 Text(

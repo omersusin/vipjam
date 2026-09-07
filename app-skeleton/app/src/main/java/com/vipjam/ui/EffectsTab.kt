@@ -763,10 +763,9 @@ fun HybridChainSection(
                     }
                 }
             }
-        }
-        if (reducedMotion) {
-            card()
-        } else {
+            if (reducedMotion) {
+                card()
+            } else {
             val delay = consoleStaggerDelay(staggerBase + index).toInt()
             AnimatedVisibility(
                 visible = entered,
@@ -775,6 +774,7 @@ fun HybridChainSection(
                 exit = fadeOut()
             ) {
                 card()
+            }
             }
         }
     }

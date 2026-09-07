@@ -137,7 +137,7 @@ public:
             inBuffer->frame_count == 0)
             return -EINVAL;
         uint32_t frames = inBuffer->frame_count;
-        if (frames == 0 || frames > 8192) return -EINVAL;
+        if (frames == 0 || frames > (1u << 20)) return -EINVAL;
         if (inBuffer->raw == nullptr || outBuffer->raw == nullptr) return -EINVAL;
         if (work_.size() < frames * 2) work_.resize(frames * 2);
         audio_format_t fmt = (audio_format_t)config_.input_cfg.format;
@@ -501,7 +501,10 @@ private:
             return -EINVAL;
         chain_.viperKernelCommit(kernelTotal_, (uint32_t)b, (uint32_t)c);
         chain_.setStageEnabled(VJ_STAGE_VIPER_CONV, true);
-        kernelReset();
+        kernelBuf_.clear();
+        kernelTotal_ = 0;
+        kernelChannels_ = 0;
+        kernelNext_ = 0;
         return 0;
     }
 
