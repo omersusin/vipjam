@@ -7,8 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,7 +52,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -209,12 +206,6 @@ fun VipJamApp() {
         driverText = outcome.second
         driverDone = true
     }
-
-    val dimAlpha by animateFloatAsState(
-        targetValue = if (masterOn) 1f else 0.38f,
-        animationSpec = tween(200),
-        label = "master-dim"
-    )
 
     fun persistMaster(on: Boolean) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -405,9 +396,14 @@ fun VipJamApp() {
                 FloatingActionButton(
                     onClick = { persistMaster(!masterOn) },
                     containerColor = if (masterOn) {
-                        MaterialTheme.colorScheme.primaryContainer
+                        MaterialTheme.colorScheme.primary
                     } else {
-                        MaterialTheme.colorScheme.errorContainer
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (masterOn) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 ) {
                     PowerDot(on = masterOn)
@@ -426,12 +422,18 @@ fun VipJamApp() {
                     .widthIn(max = 840.dp)
                     .fillMaxWidth()
                     .fillMaxHeight()
-                    .graphicsLayer(alpha = if (current == null) dimAlpha else 1f)
             ) {
                 when (current) {
                     null -> HomeTab(
                         store = store,
                         snackbar = snackbar,
+                        masterOn = masterOn,
+                        profile = profile,
+                        driverText = driverText,
+                        driverOk = driverDone && driverOk,
+                        activeName = activeName,
+                        onToggleMaster = { persistMaster(!masterOn) },
+                        onSelectProfile = { persistProfile(it) },
                         onOpenPresets = {
                             systemDetail = null
                             detail = Detail.Presets
