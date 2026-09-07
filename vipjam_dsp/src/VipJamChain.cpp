@@ -2,6 +2,7 @@
 #include "james_bridge.h"
 #include "viper_bridge.h"
 #include "VipJamParams.h"
+#include <cmath>
 
 VipJamChain::VipJamChain()
     : samplingRate_(44100), master_(true), limiterGate_(0.999999f) {
@@ -315,9 +316,16 @@ void VipJamChain::process(std::vector<float> &interleavedStereo) {
     }
     for (uint32_t i = 0; i < interleavedStereo.size(); i++) {
         float v = interleavedStereo[i];
+        if (!(v >= -8.0f && v <= 8.0f)) v = 0.0f;
         if (enabled_[VJ_STAGE_LIMITER]) {
-            if (v > limiterGate_) v = limiterGate_;
-            else if (v < -limiterGate_) v = -limiterGate_;
+            float g = limiterGate_;
+            float knee = 0.92f * g;
+            float a = fabsf(v);
+            if (a > knee && g > knee) {
+                float over = (a - knee) / (g - knee);
+                float shaped = knee + (g - knee) * tanhf(over);
+                v = (v < 0.0f ? -1.0f : 1.0f) * shaped;
+            }
         }
         if (v > 1.0f) v = 1.0f;
         else if (v < -1.0f) v = -1.0f;

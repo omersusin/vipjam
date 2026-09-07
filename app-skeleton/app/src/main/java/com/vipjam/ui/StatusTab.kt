@@ -40,6 +40,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.vipjam.BuildConfig
 import com.vipjam.data.PresetImporter
 import com.vipjam.data.PresetStore
+import com.vipjam.data.TransducerDb
 import com.vipjam.data.VipJamPrefs
 import com.vipjam.dsp.VipJamDispatcher
 import com.vipjam.effect.VipJamEffects
@@ -369,6 +370,14 @@ fun StatusTab(store: PresetStore) {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text("Audio device: $audioText", style = MaterialTheme.typography.bodyMedium)
+                    val transducer = TransducerDb.resolve(audioText)
+                    if (transducer != null) {
+                        Text(
+                            "Identified: ${transducer.brand} ${transducer.model} · DDC hint: ${transducer.ddcHint}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 Text(
                     "Sources: DataStore prefs, route map, AudioManager outputs",
