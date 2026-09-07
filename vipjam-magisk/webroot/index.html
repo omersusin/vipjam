@@ -52,8 +52,26 @@
     <div class="status" id="status">loading…</div>
     <div class="row"><button id="refreshBtn" class="ghost">Refresh</button><button id="diagBtn" class="ghost">Diagnostics</button></div>
   </div>
+  <div class="card">
+    <h3>Kernels &amp; DDC</h3>
+    <div class="note">Upload .vdc / .wav / .irs into staging. The app pushes them to the driver from Effects.</div>
+    <div class="row"><input type="file" id="kernelFile" accept=".vdc,.wav,.irs" /></div>
+    <div class="row"><button id="kernelBtn" class="ghost">Stage file</button></div>
+    <div id="kernelList"></div>
+  </div>
+  <div class="card">
+    <h3>Logs</h3>
+    <div class="status" id="logs">—</div>
+    <div class="row"><button id="logsBtn" class="ghost">Tail log</button></div>
+  </div>
+  <div class="card">
+    <h3>Reset</h3>
+    <div class="row"><button id="resetPresetsBtn" class="ghost">Clear downloaded presets</button></div>
+    <div class="row"><button id="resetPropsBtn" class="ghost">Clear root props</button></div>
+  </div>
 <script>
   const PRESET_DIR = "/data/local/tmp/vipjam/presets";
+  const KERNEL_DIR = "/data/local/tmp/vipjam/kernels";
   const P_BASS_GAIN = 65577;
   const F_CLARITY = 131504;
   let hasCtl = true;
@@ -88,7 +106,7 @@
     }
   }
   function setEnabled(on) {
-    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn", "diagBtn"]) {
+    for (const id of ["masterBtn", "profile", "bass", "clarity", "presetBtn", "diagBtn", "kernelBtn", "logsBtn", "resetPresetsBtn", "resetPropsBtn"]) {
       document.getElementById(id).disabled = !on;
     }
     document.getElementById("nobeCtl").hidden = on;
@@ -106,6 +124,7 @@
     const out = await sh("vipjam-ctl status-json 2>&1");
     document.getElementById("status").textContent = out || "(empty)";
     listPresets();
+    listKernels();
   }
   async function diag() {
     if (!hasCtl) {
@@ -132,8 +151,37 @@
         await sh("vipjam-ctl preset " + q(path));
         refresh();
       };
+      const del = document.createElement("button");
+      del.className = "ghost";
+      del.textContent = "Delete";
+      del.onclick = async () => {
+        await sh("rm -f " + q(path));
+        listPresets();
+      };
       div.appendChild(label);
       div.appendChild(apply);
+      div.appendChild(del);
+      box.appendChild(div);
+    }
+  }
+  async function listKernels() {
+    const out = await sh("ls -1 " + q(KERNEL_DIR) + " 2>/dev/null");
+    const box = document.getElementById("kernelList");
+    box.innerHTML = "";
+    for (const name of out.split("\n").map(s => s.trim()).filter(Boolean)) {
+      const div = document.createElement("div");
+      div.className = "preset";
+      const label = document.createElement("span");
+      label.textContent = name;
+      const del = document.createElement("button");
+      del.className = "ghost";
+      del.textContent = "Delete";
+      del.onclick = async () => {
+        await sh("rm -f " + q(KERNEL_DIR + "/" + name));
+        listKernels();
+      };
+      div.appendChild(label);
+      div.appendChild(del);
       box.appendChild(div);
     }
   }
@@ -148,6 +196,33 @@
   }
   document.getElementById("refreshBtn").onclick = refresh;
   document.getElementById("diagBtn").onclick = diag;
+  document.getElementById("logsBtn").onclick = async () => {
+    const out = await sh("logcat -d -t 120 -s VipJamService:V PresetApplier:V VipJam:V 2>&1");
+    document.getElementById("logs").textContent = out || "(empty)";
+  };
+  document.getElementById("resetPresetsBtn").onclick = async () => {
+    await sh("rm -rf " + q(PRESET_DIR) + " && mkdir -p " + q(PRESET_DIR));
+    listPresets();
+  };
+  document.getElementById("resetPropsBtn").onclick = async () => {
+    await sh("for p in persist.vipjam.master persist.vipjam.profile; do resetprop -d \"$p\" 2>/dev/null || setprop \"$p\" \"\" 2>/dev/null; done; settings delete global vipjam_cmd 2>/dev/null; settings delete global vipjam_cmd_seq 2>/dev/null; echo done");
+  };
+  document.getElementById("kernelBtn").onclick = async () => {
+    const input = document.getElementById("kernelFile");
+    if (!input.files || !input.files[0]) return;
+    const f = input.files[0];
+    if (f.size > 32 * 1024 * 1024) return;
+    const buf = new Uint8Array(await f.arrayBuffer());
+    let bin = "";
+    const CH = 8192;
+    for (let i = 0; i < buf.length; i += CH) {
+      bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
+    }
+    const b64 = btoa(bin);
+    await sh("mkdir -p " + q(KERNEL_DIR) + " && echo " + b64 + " | base64 -d > " + q(KERNEL_DIR + "/" + f.name.replace(/[^A-Za-z0-9._-]/g, "_")));
+    input.value = "";
+    listKernels();
+  };
   document.getElementById("masterBtn").onclick = async () => {
     await sh("vipjam-ctl toggle");
     refresh();
